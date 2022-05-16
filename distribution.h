@@ -10,8 +10,8 @@ class Distribution{
         const int M;
         Eigen::VectorXd q_a, q_b, q_c;
         Eigen::VectorXd xi_a, xi_b, xi_c;
-        Eigen::Vector<double, 64> P;
-        
+        Eigen::VectorXd P;
+        //primary constructor
         Distribution(int M_, Eigen::VectorXd xi_a, Eigen::VectorXd xi_b, Eigen::VectorXd xi_c,
             Eigen::VectorXd q_a, Eigen::VectorXd q_b, Eigen::VectorXd q_c) : M(M_){
                 assert(q_a.size() == M && "Wrong dimension of q_a");
@@ -26,6 +26,11 @@ class Distribution{
                 this->xi_a = xi_a;
                 this->xi_b = xi_b;
                 this->xi_c = xi_c;
+        }
+        //alternative constructor
+        Distribution(Eigen::VectorXd m, int M_) : M (M_){
+            assert(m.size() == 64 && "Invalid distribution!");
+            P = m;
         }
         /**
          * @brief returns the index in a vector xi_ corresponding to xi_(first | second, third)
@@ -61,7 +66,8 @@ class Distribution{
                     }
                 }
             }
+            P[(a+1)* (b+1) * (c+1) - 1] = value;
             return value;
         }
     
-}
+};
