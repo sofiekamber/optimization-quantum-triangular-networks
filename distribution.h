@@ -17,15 +17,27 @@ class Distribution{
                 assert(q_a.size() == M && "Wrong dimension of q_a");
                 assert(q_b.size() == M && "Wrong dimension of q_b");
                 assert(q_c.size() == M && "Wrong dimension of q_c");
-                assert(xi_a.size() == M && "Wrong dimension of xi_a");
-                assert(xi_b.size() == M && "Wrong dimension of xi_b");
-                assert(xi_c.size() == M && "Wrong dimension of xi_c");
+                assert(xi_a.size() == 4*M*M && "Wrong dimension of xi_a");
+                assert(xi_b.size() == 4*M*M && "Wrong dimension of xi_b");
+                assert(xi_c.size() == 4*M*M && "Wrong dimension of xi_c");
                 this->q_a = q_a;
                 this->q_b = q_b;
                 this->q_c = q_c;
                 this->xi_a = xi_a;
                 this->xi_b = xi_b;
                 this->xi_c = xi_c;
+        }
+
+        //simplified primary constructor
+        Distribution(int M_, Eigen::VectorXd full) : M(M_){
+            assert(full.size() == (4*M*M + 3*M) && "Wrong input vector dimension");
+            Distribution(M_, full.segment(0, M),
+                    full.segment(M, M),
+                    full.segment(2*M, M),
+                    full.segment(3*M, 4*M*M),
+                    full.segment(3*M + 4*M*M, 4*M*M),
+                    full.segment(3*M+8*M*M, 4*M*M)
+                    );
         }
         //alternative constructor
         Distribution(Eigen::VectorXd m, int M_) : M (M_){
@@ -42,6 +54,14 @@ class Distribution{
          */
         int xi_val(int first, int second, int third){
             return first * M * M + second * M + third;
+        }
+
+        /**
+         * @brief Compute the vector P
+         * 
+         */
+        void compute(){
+            return;
         }
 
         /**
@@ -66,7 +86,7 @@ class Distribution{
                     }
                 }
             }
-            P[(a+1)* (b+1) * (c+1) - 1] = value;
+            P[(a+1) * (b+1) * (c+1) - 1] = value;
             return value;
         }
     

@@ -7,14 +7,23 @@ namespace iterative{
     //idea: to incorporate the x_i > 0 define x_i  = x'_i^2
     Distribution uniform(Eigen::VectorXd::Constant(1./64., 64), 10);
 
-    Distribution gaussNewtonStep(Distribution current, double lambda = 0.01){
-        auto square = [](double a)->double{
-            return a*a;
-        };
+    /**
+     * @brief We use simplex method to sole the linearl constrained minimization problem. 
+     * Simplex is needed to ensure that the solution is exactly cosntrained. 
+     * Alternative would be "punishment term", however this would allow inexact solutions
+     * @param A equality constraints
+     * @param b rhs of equality constraints
+     * @param positive previous values of y_k, we need to ensure that y_k - s > 0
+     * @return step s Eigen::VectorXd distribution step
+     */
+    Eigen::VectorXd simplex(Eigen::MatrixXd A, Eigen::VectorXd rhs, Eigen::VectorXd positive){
+        //norm constriants
+        //< y_k constraints
+        // might not have a solution -> use this minimization of error thing
+        return rhs;
+    }
 
-        auto root = [](double a)->double{
-            return sqrt(a);
-        };
+    Distribution gaussNewtonStep(Distribution& current, Eigen::VectorXd goal, double lambda = 0.01){
         
         int M = current.M;
         int n = 12 * M * M + 3 * M;
@@ -30,39 +39,41 @@ namespace iterative{
         point.segment(3*M + 4*M*M, 4*M*M) = current.xi_b;
         point.segment(3*M + 8*M*M, 4*M*M) = current.xi_c;
 
-        //taking the root to later square it
-        point = point.unaryExpr(root);
 
-        //initialize the Jacobian from G(x')
+        //initialize the Jacobian DF(point)
         Eigen::SparseMatrix<double> J_point;
 
-        //evaluate F(point)
-        Eigen::VectorXd F_point = current.P;
+        //evaluate F(point) with argmin ||F(x)||_2^2 =  argmin ||G(.) - goal||_2^2
+        Eigen::VectorXd F_point = current.P - goal;
 
-        //add constraints to the Jacobian
-
-        //Gauss_newton part with damping
+        //Gauss_newton LSE with damping
 
         Eigen::MatrixXd damped = J_point.transpose() * J_point + lambda * Eigen::MatrixXd::Identity(n, n);
         Eigen::MatrixXd rhs =  - J_point.transpose() * F_point;
-        Eigen::VectorXd s = damped.householderQr().solve(rhs); 
-        point = point - s;
 
         //Constrained linear minimization problem with some exact constraints
+        //Solve using Simplex, since all constraints are linear
 
-        //Solve using SVD?
-
-        //Square the vector
+        Eigen::VectorXd s = simplex(damped, rhs, point);
+        Eigen::VectorXd next_p = point - s;
 
         //initialize a new distribution class
-
-        //if necessary: compute the error (might be expensive)
-
-
+        Distribution next(M, next_p);
     }
 
     //
-    Eigen::VectorXd solve(Distribution initial, Eigen::VectorXd goal){
-        return uniform.P;
+    Eigen::VectorXd solve(Distribution initial, Eigen::VectorXd goal, double atol = 1.0e-8, double rtol = 1.0e-6){
+        Eigen::VectorXd x_k = initial.P;
+        Distribution next = initial;
+        Eigen::VectorXd s;
+        std::cout << "Gauss-Newton local minima search error" << std::endl;
+        std::cout << "--------------------------------------" << std::endl;
+        do{
+            next = gaussNewtonStep(next, goal);
+            x_k = next.P;
+            std::cout << (x_k - goal).norm() << std::endl;
+        }while(s.norm() > rtol * x_k.norm() && (s.norm() > atol));
+
+        return x_k;
     }
 }
