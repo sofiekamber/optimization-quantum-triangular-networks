@@ -1,0 +1,7 @@
+[
+{
+  "directory": "/home/baburini/projects/oqtn/optimization-quantum-triangular-networks/build",
+  "command": "/usr/bin/g++   -g -std=gnu++14 -o CMakeFiles/optimization_quantum_triangular_networks.dir/main.cpp.o -c /home/baburini/projects/oqtn/optimization-quantum-triangular-networks/main.cpp",
+  "file": "/home/baburini/projects/oqtn/optimization-quantum-triangular-networks/main.cpp"
+}
+]
