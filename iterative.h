@@ -1,25 +1,58 @@
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Sparse>
+#include "libalglib/src/optimization.h"
+#include "libalglib/src/stdafx.h"
+#include <math.h>
 #include "distribution.h"
 
 namespace iterative{
 
-    //idea: to incorporate the x_i > 0 define x_i  = x'_i^2
     Distribution uniform(Eigen::VectorXd::Constant(1./64., 64), 10);
+
+    /**
+     * @brief check whether a is normalized
+     * 
+     * @param a Vector (discrete distribution) to be verified
+     * @param atol absolute tolerance
+     */
+    void normalized(Eigen::VectorXd a, double atol = 1e-5){
+        assert(1.0 - atol < a.sum() && a.sum() < 1.0 + atol && "Normalization is violated!");
+    }
 
     /**
      * @brief We use simplex method to sole the linearl constrained minimization problem. 
      * Simplex is needed to ensure that the solution is exactly cosntrained. 
      * Alternative would be "punishment term", however this would allow inexact solutions
+     * Note: we are minimizing L1 error norm, not L2 as in Gauss-Newton (because Simplex solves linear)
      * @param A equality constraints
      * @param b rhs of equality constraints
      * @param positive previous values of y_k, we need to ensure that y_k - s > 0
      * @return step s Eigen::VectorXd distribution step
      */
     Eigen::VectorXd simplex(Eigen::MatrixXd A, Eigen::VectorXd rhs, Eigen::VectorXd positive){
+        int n = A.cols();
+
+        //initializing LP solver & the report
+        alglib::minlpstate state;
+        alglib::minlpreport rep;
+        alglib::real_1d_array sol;
+        alglib::minlpcreate(n, state);
+
+        //scaling, all variables are the same
+        alglib::real_1d_array s = "[1,1]";
+        alglib::minlpsetscale(state, s);
+
+        //minimization constraints of the L1 norm
+        alglib::minlpsetcost(state, s);
+        
         //norm constriants
-        //< y_k constraints
+        //< y_k constraints introduce || optimization similar to L1 norm
         // might not have a solution -> use this minimization of error thing
+
+        //solving the LP
+        alglib::minlpoptimize(state);
+        alglib::minlpresults(state, sol, rep);
+
         return rhs;
     }
 
@@ -64,7 +97,7 @@ namespace iterative{
     //
     Eigen::VectorXd solve(Distribution initial, Eigen::VectorXd goal, double atol = 1.0e-8, double rtol = 1.0e-6){
         Eigen::VectorXd x_k = initial.P;
-        Distribution next = initial;
+        Distribution& next = initial;
         Eigen::VectorXd s;
         std::cout << "Gauss-Newton local minima search error" << std::endl;
         std::cout << "--------------------------------------" << std::endl;
