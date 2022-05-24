@@ -9,7 +9,7 @@ class Distribution{
     public:
         const int M;
         Eigen::VectorXd q_a, q_b, q_c;
-        Eigen::VectorXd xi_a, xi_b, xi_c;
+        Eigen::VectorXd xi_A, xi_B, xi_C;
         Eigen::VectorXd P;
         //primary constructor
         Distribution(int M_, Eigen::VectorXd xi_a, Eigen::VectorXd xi_b, Eigen::VectorXd xi_c,
@@ -23,9 +23,9 @@ class Distribution{
                 this->q_a = q_a;
                 this->q_b = q_b;
                 this->q_c = q_c;
-                this->xi_a = xi_a;
-                this->xi_b = xi_b;
-                this->xi_c = xi_c;
+                this->xi_A = xi_a;
+                this->xi_B = xi_b;
+                this->xi_C = xi_c;
         }
 
         //simplified primary constructor
@@ -44,16 +44,39 @@ class Distribution{
             assert(m.size() == 64 && "Invalid distribution!");
             P = m;
         }
+        
         /**
-         * @brief returns the index in a vector xi_ corresponding to xi_(first | second, third)
+         * @brief return value of xi_a(a | beta, gamma)
          * 
-         * @param first \in {0, ..., 3}
-         * @param second \in {0, ..., M-1}
-         * @param third \in {0, ..., M-1}
-         * @return int \in {0, ..., 4M^2 - 1}
+         * @param a 
+         * @param beta 
+         * @param gamma 
+         * @return double 
          */
-        int xi_val(int first, int second, int third){
-            return first * M * M + second * M + third;
+        double xi_a(int a, int beta, int gamma){
+            return xi_A(gamma * M * M, + beta * M + a);
+        }
+        /**
+         * @brief return value of xi_b(b | alpha, gamma)
+         * 
+         * @param b 
+         * @param alpha 
+         * @param gamma 
+         * @return double 
+         */
+        double xi_b(int b, int alpha, int gamma){
+            return xi_B(gamma * M * M, + alpha * M + b);
+        }
+        /**
+         * @brief return value of xi_c(c | alpha, beta)
+         * 
+         * @param c 
+         * @param alpha 
+         * @param beta 
+         * @return double 
+         */
+        double xi_c(int c, int alpha, int beta){
+            return xi_C(beta * M * M, + alpha * M + c);
         }
 
         /**
@@ -82,11 +105,11 @@ class Distribution{
             for (int i = 0; i < M; i++){
                 for (int j = 0; j < M; j++){
                     for (int k = 0; k < M; k++){
-                        value += q_a[i] * q_b[j] * q_c[k] * xi_a[xi_val(a, j, k)] * xi_b[xi_val(b, i, k)] * xi_c[xi_val(c, i, j)];
+                        value += q_a[i] * q_b[j] * q_c[k] * xi_a(a, j, k) * xi_b(b, i, k) * xi_c(c, i, j);
                     }
                 }
             }
-            P[(a+1) * (b+1) * (c+1) - 1] = value;
+            P[a * 16 + b * 4 + c] = value;
             return value;
         }
     
