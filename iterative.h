@@ -6,8 +6,9 @@
 #include "distribution.h"
 
 namespace iterative{
-
-    Distribution uniform(Eigen::VectorXd::Constant(1./64., 64), 10);
+    //uniform distribution
+    Eigen::VectorXd uniform = Eigen::VectorXd::Constant(1./64., 64);
+    Eigen::VectorXd elegant(64);
 
     /**
      * @brief check whether a is normalized
@@ -19,68 +20,8 @@ namespace iterative{
         assert(1.0 - atol < a.sum() && a.sum() < 1.0 + atol && "Normalization is violated!");
     }
 
-    std::pair<Eigen::SparseMatrix<double>, std::vector<Eigen::Triplet<double>>> computeJacobian(Distribution A){
-        // order of computing derivative: q_a, q_b, q_c, xi_a, xi_b, xi_c
-        const int M = A.M;
-        const int n = M * M * 12 + 3 * M;
-        auto val = [](int a, int b, int c){
-            return a * 16 + b * 4 + c;
-        };
-
-
-        Eigen::SparseMatrix<double> J;
-        std::vector<Eigen::Triplet<double>> triplets;
-
-        
-        for (int a = 0; a < 4; a++){
-            for (int b = 0; b < 4; b++){
-                for (int c = 0; c < 4; c++){
-                    //computing xi_a derivatives
-                    for (int beta = 0; beta < M; beta++){
-                        for (int gamma = 0; gamma < M; gamma++){
-                            double value = 0;
-                            for (int alpha = 0; alpha < M; alpha++){
-                                value += A.q_a(alpha) * A.q_b(beta) * A.q_c(gamma) * A.xi_b(b, alpha, gamma) * A.xi_c(c, alpha, beta);
-                            }
-                            triplets.push_back(Eigen::Triplet<double>(val(a, b, c), 3*M + (gamma * M * M + beta * M + a), value));
-                        }
-                    }
-                    //computing xi_b derivatives
-                    for (int alpha = 0; alpha < M; alpha++){
-                        for (int gamma = 0; gamma < M; gamma++){
-                            double value = 0;
-                            for (int beta = 0; beta < M; beta++){
-                                value += A.q_a(alpha) * A.q_b(beta) * A.q_c(gamma) * A.xi_a(a, beta, gamma) * A.xi_c(c, alpha, beta);
-                            }
-                            triplets.push_back(Eigen::Triplet<double>(val(a, b, c), 3*M + 4*M*M + (gamma * M * M + alpha * M + b), value));
-                        }
-                    }
-                    //computing xi_c derivatives
-                    for (int beta = 0; beta < M; beta++){
-                        for (int alpha = 0; alpha < M; alpha++){
-                            double value = 0;
-                            for (int gamma = 0; gamma < M; gamma++){
-                                value += A.q_a(alpha) * A.q_b(beta) * A.q_c(gamma) * A.xi_b(b, alpha, gamma) * A.xi_a(a, beta, gamma);
-                            }
-                            triplets.push_back(Eigen::Triplet<double>(val(a, b, c), 3*M + 8*M*M + (alpha * M * M + beta * M + c), value));
-                        }
-                    }
-                }
-            }
-        }
-
-        
-
-        J.setFromTriplets(triplets.begin(), triplets.end());
-        J.makeCompressed();
-
-        //actually J is not very sparse (4*M*M + 3M values), but it has a lot of zero blocks
-        return std::make_pair(J, triplets);
-
-    }
-
     /**
-     * @brief We use simplex method to sole the linearl constrained minimization problem. 
+     * @brief We use simplex method to solve the linearly constrained minimization problem. 
      * Simplex is needed to ensure that the solution is exactly cosntrained. 
      * Alternative would be "punishment term", however this would allow inexact solutions
      * Note: we are minimizing L1 error norm, not L2 as in Gauss-Newton (because Simplex solves linear)
