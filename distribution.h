@@ -1,9 +1,5 @@
 #include <eigen3/Eigen/Dense>
 
-/**
- * @brief A class to initialize an arbitrary distribution
- * @param M = discretization parameter
- */
 
 class Distribution
 {
@@ -13,6 +9,10 @@ public:
     Eigen::VectorXd xi_A, xi_B, xi_C;
     Eigen::VectorXd P;
     // primary constructor
+    /**
+    * @brief A class to initialize an arbitrary distribution
+    * @param M discretization parameter \in {1, ..., 60}
+    */
     Distribution(int M_, Eigen::VectorXd xi_a, Eigen::VectorXd xi_b, Eigen::VectorXd xi_c,
                  Eigen::VectorXd q_a, Eigen::VectorXd q_b, Eigen::VectorXd q_c) : M(M_)
     {
