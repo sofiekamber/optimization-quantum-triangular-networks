@@ -96,7 +96,7 @@ namespace iterative{
 
         //adding BOUNDARY conditions for the variables q_a, q_b ... xi_c and u
         Eigen::VectorXd upper(n + 64), lower(n + 64);
-        upper << y_k, Eigen::VectorXd::Ones(64);
+        upper << y_k, Eigen::VectorXd::Constant(64, 2.0);
         lower << Eigen::VectorXd::Constant(n, -1.0), Eigen::VectorXd::Zero(64);
         alglib::real_1d_array up_var, low_var;
         up_var.setcontent(n + 64, upper.data());
