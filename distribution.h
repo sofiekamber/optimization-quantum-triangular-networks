@@ -1,5 +1,5 @@
 #include <eigen3/Eigen/Dense>
-
+#include <eigen3/Eigen/Sparse>
 
 class Distribution
 {
@@ -7,14 +7,14 @@ public:
     const int M;
     Eigen::VectorXd q_a, q_b, q_c;
     Eigen::VectorXd xi_A, xi_B, xi_C;
-    Eigen::VectorXd P;
+    Eigen::VectorXd P = Eigen::VectorXd::Zero(64);;
     // primary constructor
     /**
     * @brief A class to initialize an arbitrary distribution
     * @param M discretization parameter \in {1, ..., 60}
     */
-    Distribution(int M_, Eigen::VectorXd xi_a, Eigen::VectorXd xi_b, Eigen::VectorXd xi_c,
-                 Eigen::VectorXd q_a, Eigen::VectorXd q_b, Eigen::VectorXd q_c) : M(M_)
+    Distribution(int M_, Eigen::VectorXd q_a, Eigen::VectorXd q_b, Eigen::VectorXd q_c, 
+                    Eigen::VectorXd xi_a, Eigen::VectorXd xi_b, Eigen::VectorXd xi_c) : M(M_)
     {
         assert(q_a.size() == M && "Wrong dimension of q_a");
         assert(q_b.size() == M && "Wrong dimension of q_b");
@@ -28,7 +28,6 @@ public:
         this->xi_A = xi_a;
         this->xi_B = xi_b;
         this->xi_C = xi_c;
-        P = Eigen::VectorXd::Zero(64);
         compute();
     }
 
@@ -36,12 +35,14 @@ public:
     Distribution(int M_, Eigen::VectorXd full) : M(M_)
     {
         assert(full.size() == (12 * M * M + 3 * M) && "Wrong input vector dimension");
-        Distribution(M_, full.segment(0, M),
-                     full.segment(M, M),
-                     full.segment(2 * M, M),
-                     full.segment(3 * M, 4 * M * M),
-                     full.segment(3 * M + 4 * M * M, 4 * M * M),
-                     full.segment(3 * M + 8 * M * M, 4 * M * M));
+        q_a = full.segment(0, M);
+        q_b = full.segment(M, M);
+        q_c = full.segment(2*M, M);
+        xi_A = full.segment(3 * M, 4 * M * M);
+        xi_B = full.segment(3 * M + 4 * M * M, 4 * M * M);
+        xi_C = full.segment(3 * M + 8 * M * M, 4 * M * M);
+        compute();
+
     }
 
     /**
@@ -54,7 +55,7 @@ public:
      */
     double xi_a(int a, int beta, int gamma)
     {
-        return xi_A(a * M * M, + beta * M + gamma);
+        return xi_A(a * M * M + beta * M + gamma);
     }
     /**
      * @brief return value of xi_b(b | alpha, gamma) \in R^{4M^2}
@@ -66,7 +67,7 @@ public:
      */
     double xi_b(int b, int alpha, int gamma)
     {
-        return xi_B(b * M * M, +alpha * M + gamma);
+        return xi_B(b * M * M + alpha * M + gamma);
     }
     /**
      * @brief return value of xi_c(c | alpha, beta) \in R^{4M^2}
@@ -78,7 +79,7 @@ public:
      */
     double xi_c(int c, int alpha, int beta)
     {
-        return xi_C(c * M * M, +alpha * M + beta);
+        return xi_C(c * M * M + alpha * M + beta);
     }
 
 
@@ -238,8 +239,8 @@ private:
         for (int a = 0; a < 4; a++){
             for (int b = 0; b < 4; b++){
                 for (int c = 0; c < 4; c++){
-                    for (int alpha = 0; a < M; a++){
-                        for (int beta = 0; b < M; b++){
+                    for (int alpha = 0; alpha < M; alpha++){
+                        for (int beta = 0; beta < M; beta++){
                             for (int gamma = 0; gamma < M; gamma++){
                                 P[a * 16 + b * 4 + c] += q_a(alpha) * q_b(beta) * q_c(gamma) * xi_a(a, beta, gamma) * xi_b(b, alpha, gamma) * xi_c(c, beta, gamma);
                             }

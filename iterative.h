@@ -111,7 +111,7 @@ namespace iterative{
         alglib::minlpsetcost(state, min);
 
         //adding normalization EQUALITY constraints for q_a, q_b, q_c, xi_a, xi_b, xi_c for s (step has a 0 norm)
-        Eigen::VectorXd q_a(n+64), q_a(n+64), q_b(n+64), q_c(n+64), xi_a(n+64), xi_b(n+64), xi_c(n+64);
+        Eigen::VectorXd q_a(n+64), q_b(n+64), q_c(n+64), xi_a(n+64), xi_b(n+64), xi_c(n+64);
         q_a << Eigen::VectorXd::Ones(M), Eigen::VectorXd::Zero(n + 64 - M);
         q_b << Eigen::VectorXd::Zero(M), Eigen::VectorXd::Ones(M), Eigen::VectorXd::Zero(n + 64 - 2*M);
         q_c << Eigen::VectorXd::Zero(2*M), Eigen::VectorXd::Ones(M), Eigen::VectorXd::Zero(n + 64 - 3*M);
