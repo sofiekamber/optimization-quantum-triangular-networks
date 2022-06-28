@@ -10,8 +10,6 @@
 #include <eigen3/Eigen/Sparse>
 
 // LP solver includes
-#include "libalglib/src/optimization.h"
-#include "libalglib/src/stdafx.h"
 #include <CGAL/QP_models.h>
 #include <CGAL/QP_functions.h>
 
