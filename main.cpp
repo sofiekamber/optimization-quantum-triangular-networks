@@ -1,6 +1,6 @@
 #include <iostream>
 #include <eigen3/Eigen/Dense>
-//#include "iterative.h"
+#include "iterative.h"
 #include "search.h"
 #include "distribution.h"
 

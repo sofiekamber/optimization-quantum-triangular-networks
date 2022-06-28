@@ -1,3 +1,6 @@
+#ifndef DISTRIBUTION_H
+#define DISTRIBUTION_H
+
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Sparse>
 
@@ -116,9 +119,9 @@ public:
     /**
      * @brief computes the Jacobian of \Gamma = G at point this.Distribution
      *
-     * @return std::pair<DG as a SparseMatrix, DG as a TripletVector>
+     * @return DG as a SparseMatrix
      */
-    std::pair<Eigen::SparseMatrix<double>, std::vector<Eigen::Triplet<double>>> computeJacobian()
+    Eigen::SparseMatrix<double> computeJacobian()
     {
         // order of computing derivative: q_a, q_b, q_c, xi_a, xi_b, xi_c
         const int n = M * M * 12 + 3 * M;
@@ -227,7 +230,7 @@ public:
         J.makeCompressed();
 
         // actually J is not very sparse (4*M*M + 3M values are non-zero), but it has a lot of zero blocks
-        return std::make_pair(J, triplets);
+        return J;
     }
 private:
     /**
@@ -251,3 +254,5 @@ private:
         }
     }
 };
+
+#endif

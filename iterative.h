@@ -1,10 +1,34 @@
-#include <eigen3/Eigen/Dense>
-#include <eigen3/Eigen/Sparse>
-#include "libalglib/src/optimization.h"
-#include "libalglib/src/stdafx.h"
+#ifndef ITERATIVE_SOLVER_H
+#define ITERATIVE_SOLVER_H
+
+// standart cpp includes
 #include <math.h>
 #include <memory>
+
+// Eigen includes
+#include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/Sparse>
+
+// LP solver includes
+#include "libalglib/src/optimization.h"
+#include "libalglib/src/stdafx.h"
+#include <CGAL/QP_models.h>
+#include <CGAL/QP_functions.h>
+
 #include "distribution.h"
+
+// choose the fastest available solver (float)
+#ifdef CGAL_USE_GMP
+#include <CGAL/Gmpzf.h>
+typedef CGAL::Gmpzf ET;
+#else
+#include <CGAL/MP_Float.h>
+typedef CGAL::MP_Float ET;
+#endif
+
+// program and solution types
+typedef CGAL::Quadratic_program<double> Program;
+typedef CGAL::Quadratic_program_solution<ET> Solution;
 
 namespace iterative{
     //uniform distribution
@@ -28,31 +52,9 @@ namespace iterative{
      * @param J Jacobian
      * @return std::vector<Eigen::Triplet<double>> LP matrix
      */
-    Eigen::SparseMatrix<double> LPmatrix(int M, std::vector<Eigen::Triplet<double>> J){
+    Eigen::MatrixXd LPmatrix(int M, const Eigen::SparseMatrix<double>& J){
         int n = 12 * M * M + 4 * M;
-        Eigen::SparseMatrix<double> LP(64 * 2, n + 64);
-        //Goal: u_i = |Js_i - b_i| with i \in {0, ..., 63}
-        int rows = 64;
-        int cols = n;
-        std::vector<Eigen::Triplet<double>> constraints;
-        constraints.reserve(2 * (J.size() + 64));
-
-        //initializing upper rows: u_i >= - Js_i + b_i ==> u_i + Js_i >= b_i
-        constraints.insert(constraints.begin(), J.begin(), J.end());
-
-        //intializing lower rows: u_i >= Js_i - b_i ==> u_i - Js_i >= - b_i
-        for (int i = 0; i < J.size(); i++){
-            constraints.push_back(Eigen::Triplet<double>(J[i].row() + 64, J[i].col(), (-1)*J[i].value()));
-        }
-
-        //adding those new variables u_i  as 1.0 * u_i
-        for (int i = 0; i < 64; i++){
-            constraints.push_back(Eigen::Triplet<double>(i, cols + i, 1.0));
-            constraints.push_back(Eigen::Triplet<double>(i + 64, cols + i, 1.0));
-        }
-
-        LP.setFromTriplets(constraints.begin(), constraints.end());
-
+        Eigen::MatrixXd LP = J.transpose() * J;
         return LP;
     }
 
@@ -61,97 +63,91 @@ namespace iterative{
      * Simplex is needed to ensure that the solution is exactly cosntrained. 
      * Alternative would be "punishment term", however this would allow inexact solutions
      * Note: we are minimizing L1 error norm, not L2 as in Gauss-Newton (because Simplex solves linear)
-     * @param LP main inequality constraints
+     * @param LP  = J^t * J
+     * @param J = Jacobian at point y_k
      * @param F_yk contraints needed for LP (>= F_yk, >= - F_yk)
      * @param y_k previous values of y_k, we need to ensure that y_k - s >= 0 ==> y_k >= s >= -1
      * @return step s Eigen::VectorXd distribution step
      */
-    Eigen::VectorXd simplex(int M, Eigen::SparseMatrix<double> LP, Eigen::VectorXd F_yk, Eigen::VectorXd y_k){
+    Eigen::VectorXd quadratic_solver(
+        int M, 
+        const Eigen::MatrixXd& LP, 
+        const Eigen::SparseMatrix<double>& J,
+        const Eigen::VectorXd& F_yk, 
+        const Eigen::VectorXd& y_k)
+    {
         int n = 12 * M * M + 4 * M;
-        //total number of variables = n + 64
+        //total number of variables = n
 
-        assert(F_yk.size() == 64 && y_k.size() == n && "Dimensions of inputs to simplex are wrong!");
+        assert(F_yk.size() == 64 && y_k.size() == n && "Dimensions of inputs to quadratic solver are wrong!");
 
-        //initializing LP solver & the report
-        alglib::minlpstate state;
-        alglib::minlpreport rep;
-        alglib::real_1d_array sol, rhs_u, rhs_l;
-        alglib::real_2d_array LP_constr;
+        Program lp (CGAL::EQUAL, true, 1.0, true, -1.0);
 
-        //a global upper bounded on all variables or expressions
-        Eigen::VectorXd one = Eigen::VectorXd::Ones(64*2);
-        rhs_u.setcontent(one.size(), one.data());
+        // change it to iteration through a sparse matrix
+        // initialize the x^t * J^t * J * x minimization objective = L^2 norm
+        // note: we define double the value of matrix here (needed for CGAL)
+        for (int i = 0; i < M; i++){
+            for (int j = 0; j < M; j++){
+                lp.set_d(i, j, 2 * LP(i, j));
+            }
+        }
 
-        //creating a solver 
-        alglib::minlpcreate(n + 64, state);
+        // initialize: - 2 b^t * J * x
+        Eigen::VectorXd c = F_yk.transpose() * J;
+        for (int i = 0; i < M; i++){
+            lp.set_c(i, -2 * c(i));
+        }
 
-        //adding original INEQUALITY constraints as a 2D matrix, note all equations are upper bounded by 1
-        Eigen::MatrixXd LP_dense(LP);
-        Eigen::VectorXd LP_rhs(64*2);
+        // initialize b^t * b
+        lp.set_c0(F_yk.squaredNorm());
 
-        LP_rhs << F_yk, (-1) * F_yk;
-        LP_constr.setcontent(LP.rows(), LP.cols(), LP_dense.data());
-        rhs_l.setcontent(LP_rhs.size(), LP_rhs.data());
-        alglib::minlpsetlc2dense(state, LP_constr, rhs_l, rhs_u);
+        // a helper function to access the values of xi_? easier
+        auto xi = [&M](int v, int fst, int snd)->int{
+            return v * M * M + fst * M * snd;
+        };
 
-        //adding BOUNDARY conditions for the variables q_a, q_b ... xi_c and u
-        Eigen::VectorXd upper(n + 64), lower(n + 64);
-        upper << y_k, Eigen::VectorXd::Constant(64, 2.0);
-        lower << Eigen::VectorXd::Constant(n, -1.0), Eigen::VectorXd::Zero(64);
-        alglib::real_1d_array up_var, low_var;
-        up_var.setcontent(n + 64, upper.data());
-        low_var.setcontent(n + 64, lower.data());
-        alglib::minlpsetbc(state, low_var, up_var);
+        unsigned int offset = 0;
 
-        //introducing MINIMIZATION objective min (u_0 + u_1 + ... + u_63) a.k.a L1 norm
-        Eigen::VectorXd minimize(n + 64);
-        minimize << Eigen::VectorXd::Zero(n), Eigen::VectorXd::Ones(64);
-        alglib::real_1d_array min;
-        min.setcontent(minimize.size(), minimize.data());
-        alglib::minlpsetcost(state, min);
+        // default values in CGAL are 0s ==> no need to change b
 
-        //adding normalization EQUALITY constraints for q_a, q_b, q_c, xi_a, xi_b, xi_c for s (step has a 0 norm)
-        Eigen::VectorXd q_a(n+64), q_b(n+64), q_c(n+64), xi_a(n+64), xi_b(n+64), xi_c(n+64);
-        q_a << Eigen::VectorXd::Ones(M), Eigen::VectorXd::Zero(n + 64 - M);
-        q_b << Eigen::VectorXd::Zero(M), Eigen::VectorXd::Ones(M), Eigen::VectorXd::Zero(n + 64 - 2*M);
-        q_c << Eigen::VectorXd::Zero(2*M), Eigen::VectorXd::Ones(M), Eigen::VectorXd::Zero(n + 64 - 3*M);
-        xi_a << Eigen::VectorXd::Zero(3*M), Eigen::VectorXd::Ones(4*M*M), Eigen::VectorXd::Zero(n + 64 - 3*M - 4*M*M);
-        xi_b << Eigen::VectorXd::Zero(3*M + 4*M*M), Eigen::VectorXd::Ones(4*M*M), Eigen::VectorXd::Zero(n + 64 - 3*M - 8*M*M);
-        xi_c << Eigen::VectorXd::Zero(3*M + 8*M*M), Eigen::VectorXd::Ones(4*M*M), Eigen::VectorXd::Zero(64);
+        // now set the normalization constraints for q_a, q_b, q_c
+        for (int j = 0; j < M; j++){
+            lp.set_a(offset + 0, j, 1.0);
+            lp.set_a(offset + 1, M + j, 1.0);
+            lp.set_a(offset + 2, 2*M + j, 1.0);
+        }
+        offset += 3;
 
-        alglib::real_1d_array Q_A, Q_B, Q_C, Xi_A, Xi_B, Xi_C;
-        Q_A.setcontent(q_a.size(), q_a.data());
-        Q_B.setcontent(q_b.size(), q_b.data());
-        Q_C.setcontent(q_c.size(), q_c.data());
-        Xi_A.setcontent(xi_a.size(), xi_a.data());
-        Xi_B.setcontent(xi_b.size(), xi_b.data());
-        Xi_C.setcontent(xi_c.size(), xi_c.data());
+        // now set the normalization constraints for xi_a, xi_b, xi_c (three in total)
+        for (int l = 0; l < 2; l++){
+            for (int i = 0; i < M; i++){
+                for (int j = 0; j < M ; j++){
+                    lp.set_a(offset + i * M + j, xi(0, i, j), 1.0);
+                    lp.set_a(offset + i * M + j, xi(1, i, j), 1.0);
+                    lp.set_a(offset + i * M + j, xi(2, i, j), 1.0);
+                    lp.set_a(offset + i * M + j, xi(3, i, j), 1.0);
+                }
+            }
+            offset += M*M;
+        }
 
-        alglib::minlpaddlc2dense(state, Q_A, 0.0, 0.0);
-        alglib::minlpaddlc2dense(state, Q_B, 0.0, 0.0);
-        alglib::minlpaddlc2dense(state, Q_C, 0.0, 0.0);
-        alglib::minlpaddlc2dense(state, Xi_A, 0.0, 0.0);
-        alglib::minlpaddlc2dense(state, Xi_B, 0.0, 0.0);
-        alglib::minlpaddlc2dense(state, Xi_C, 0.0, 0.0);
-        
-        //scaling, all variables are the same
-        Eigen::VectorXd longone = Eigen::VectorXd::Ones(n + 64);
-        alglib::real_1d_array s;
-        s.setcontent(n + 64, longone.data());
-        alglib::minlpsetscale(state, s);
+        // setting the values of upper boundary as y_k      
+        for (int i = 0; i < n; i++){
+            lp.set_u(i, y_k(i));
+        }
 
-        //solving the LP
-        alglib::minlpoptimize(state);
-        alglib::minlpresults(state, sol, rep);
+        // setting the value of the lower boundary as y_k - 1.0
+        for (int i = 0; i < n; i++){
+            lp.set_l(i, y_k(i) - 1.0);
+        }
 
-        assert(rep.terminationtype > 0 && "Simplex failed. Print INFO for more"); 
+        Solution sol = CGAL::solve_quadratic_program(lp, ET());
+        assert(sol.solves_quadratic_program(lp) && "Solution doesn't work, might be infeasible?");
 
-        //remove the values of u
-        Eigen::VectorXd solution(sol.getcontent());
+        Eigen::VectorXd solution(n);
+        // TODO: copy the values of sol into the solution vector
 
-        std::cout <<"Best error achieved by simplex: " << solution.tail(64).sum() << std::endl;
-
-        return solution.head(3*M + 12 * M * M);
+        return solution;
     }
 
     Distribution gaussNewtonStep(Distribution& current, Eigen::VectorXd goal){
@@ -174,15 +170,14 @@ namespace iterative{
         Eigen::VectorXd F_yk = current.P - goal;
 
         //Gauss_newton LSE without damping, since for simplex there is no y_k, we use || . ||_1 instead
-
-        std::vector<Eigen::Triplet<double>> J = current.computeJacobian().second;
+        const Eigen::SparseMatrix<double>& J = current.computeJacobian();
 
         //Constrained linear minimization problem with some exact constraints
-        Eigen::SparseMatrix<double> LP = LPmatrix(M, J);
+        const Eigen::MatrixXd& LP = LPmatrix(M, J);
 
         //Solve using Simplex, since all constraints are linear
 
-        Eigen::VectorXd s = simplex(M, LP, F_yk, y_k);
+        Eigen::VectorXd s = quadratic_solver(M, LP, J, F_yk, y_k);
         Eigen::VectorXd next_p =  y_k - s;
 
         //check if everything went ok
@@ -218,3 +213,5 @@ namespace iterative{
         return x_k;
     }
 }
+
+#endif
