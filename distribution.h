@@ -85,6 +85,10 @@ public:
         return xi_C(c * M * M + alpha * M + beta);
     }
 
+    bool checkConstraints() {
+        return q_a.sum() == 1 && q_b.sum() == 1 && q_c.sum() == 1 && xi_A.sum() == 1 && xi_B.sum() == 1 && xi_C.sum() == 1;
+    }
+
 
     /**
      * @brief Evaluate distribution P(a, b, c)
