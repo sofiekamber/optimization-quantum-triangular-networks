@@ -1,3 +1,6 @@
+#ifndef NELDER_MELDER_SEARCH_H
+#define NELDER_MELDER_SEARCH_H
+
 #include <eigen3/Eigen/Dense>
 #include <cfloat>
 #include "distribution.h"
@@ -142,6 +145,6 @@ namespace NelderMeadSearch{
 
     };
 
-
-
 }
+
+#endif

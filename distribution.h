@@ -3,6 +3,7 @@
 
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Sparse>
+#include <cmath>
 
 class Distribution
 {
@@ -10,7 +11,38 @@ public:
     const int M;
     Eigen::VectorXd q_a, q_b, q_c;
     Eigen::VectorXd xi_A, xi_B, xi_C;
-    Eigen::VectorXd P = Eigen::VectorXd::Zero(64);;
+    Eigen::VectorXd P = Eigen::VectorXd::Zero(64);
+
+    /**
+     * @brief Generate random q stle distributions (needed for testing)
+     * 
+     * @param M size of the Distribution = M
+     * @return Eigen::VectorXd 
+     */
+    static Eigen::VectorXd generate_random_q(const int M){
+        Eigen::VectorXd q = Eigen::VectorXd::Random(M);
+        auto abs_lambda = [](double x)->double{
+            return std::abs(x);
+        };
+        q = q.unaryExpr(abs_lambda);
+        return q / q.sum();
+    }
+
+    static Eigen::VectorXd generate_random_xi(const int M){
+        Eigen::VectorXd xi = Eigen::VectorXd::Random(4*M*M);
+        for (int i = 0; i < M * M; i++){
+            double sum = 0;
+            for (int j = 0; j < 4; j++){
+                sum += std::abs(xi(i + j * M * M));
+            }
+            for (int j = 0; j < 4; j++){
+                xi(i + j * M * M) = std::abs(xi(i + j * M * M)) / sum;
+            }
+        }
+        return xi;
+    }
+
+
     // primary constructor
     /**
     * @brief A class to initialize an arbitrary distribution

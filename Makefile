@@ -1,5 +1,5 @@
 main: main.cpp
-	g++ main.cpp -o code
+	g++ main.cpp -lgmp -o code
 	./code
 
 test: test.cpp

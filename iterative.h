@@ -28,7 +28,7 @@ typedef CGAL::MP_Float ET;
 typedef CGAL::Quadratic_program<double> Program;
 typedef CGAL::Quadratic_program_solution<ET> Solution;
 
-namespace iterative{
+namespace Iterative{
     //uniform distribution
     Eigen::VectorXd uniform = Eigen::VectorXd::Constant(1./64., 64);
     Eigen::VectorXd elegant(64);
@@ -142,8 +142,15 @@ namespace iterative{
         Solution sol = CGAL::solve_quadratic_program(lp, ET());
         assert(sol.solves_quadratic_program(lp) && "Solution doesn't work, might be infeasible?");
 
+        std::cout << "Observed objective value is: " << sol.objective_value() << std::endl;
+
         Eigen::VectorXd solution(n);
         // TODO: copy the values of sol into the solution vector
+        int j = 0;
+        for (auto i = sol.variable_numerators_begin(); i != sol.variable_numerators_end(); i++){
+            solution[j] = (*i).to_double();
+            j++;
+        }
 
         return solution;
     }
@@ -196,7 +203,7 @@ namespace iterative{
      * @param rtol relative tolerance default = 1.0e-6
      * @return Eigen::VectorXd 
      */
-    Eigen::VectorXd solve(Distribution& initial, Eigen::VectorXd goal, double atol = 1.0e-8, double rtol = 1.0e-6){
+    Eigen::VectorXd solve(const Distribution& initial, const Eigen::VectorXd& goal, int steps = 2, double atol = 1.0e-8, double rtol = 1.0e-6){
         Eigen::VectorXd x_k = initial.P;
         std::shared_ptr<Distribution> next = std::make_shared<Distribution>(initial);
         Eigen::VectorXd s;
@@ -206,7 +213,8 @@ namespace iterative{
             next = std::make_shared<Distribution>(gaussNewtonStep(*next, goal));
             x_k = next->P;
             std::cout << (x_k - goal).norm() << std::endl;
-        }while(s.norm() > rtol * x_k.norm() && (s.norm() > atol));
+            steps--;
+        }while(s.norm() > rtol * x_k.norm() && (s.norm() > atol) && steps > 0);
 
         return x_k;
     }
