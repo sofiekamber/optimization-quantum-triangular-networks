@@ -74,18 +74,16 @@ namespace Iterative{
         const Eigen::VectorXd& F_yk, 
         const Eigen::VectorXd& y_k)
     {
-        int n = 12 * M * M + 4 * M;
+        const int n = 12 * M * M + 3 * M;
         //total number of variables = n
-
         assert(F_yk.size() == 64 && y_k.size() == n && "Dimensions of inputs to quadratic solver are wrong!");
-
-        Program lp (CGAL::EQUAL, true, 1.0, true, -1.0);
+        Program lp (CGAL::EQUAL, true, -1.0, true, 1.0);
 
         // change it to iteration through a sparse matrix
         // initialize the x^t * J^t * J * x minimization objective = L^2 norm
         // note: we define double the value of matrix here (needed for CGAL)
         for (int i = 0; i < M; i++){
-            for (int j = 0; j < M; j++){
+            for (int j = 0; j <= i; j++){
                 lp.set_d(i, j, 2 * LP(i, j));
             }
         }
@@ -186,6 +184,8 @@ namespace Iterative{
         Eigen::VectorXd next_p =  y_k - s;
 
         //check if everything went ok
+        std::cout << next_p << std::endl;
+        std::cout << next_p.sum() << std::endl;
         normalized(next_p);
 
         //initialize a new distribution class

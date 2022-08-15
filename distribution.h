@@ -43,6 +43,28 @@ public:
     }
 
 
+    /**
+     * @brief Verify whether the vector is normalized
+     * 
+     * If vector is not normalized an assert is triggered
+     */
+    void checkConstraints(const double epsilon = 1e-7) const{
+        assert(q_a.sum() < 1 + epsilon && q_a.sum() > 1.0 - epsilon && "q_a is not normalized!");
+        assert(q_b.sum() < 1 + epsilon && q_a.sum() > 1.0 - epsilon && "q_b is not normalized!");
+        assert(q_c.sum() < 1 + epsilon && q_a.sum() > 1.0 - epsilon && "q_c is not normalized!");
+        for (int i = 0; i < M*M; i++){
+            double sumA = 0.0, sumB = 0.0, sumC = 0.0;
+            for (int j = 0; j < 4; j++){
+                sumA += std::abs(xi_A(i + j * M * M));
+                sumB += std::abs(xi_A(i + j * M * M));
+                sumC += std::abs(xi_A(i + j * M * M));
+            }
+            assert(sumA < 1.0 + epsilon && sumA > 1.0 - epsilon && "xi_a is not normalized");
+            assert(sumB < 1.0 + epsilon && sumB > 1.0 - epsilon && "xi_a is not normalized");
+            assert(sumC < 1.0 + epsilon && sumC > 1.0 - epsilon && "xi_a is not noramlized");
+        }
+    }
+
     // primary constructor
     /**
     * @brief A class to initialize an arbitrary distribution
@@ -115,10 +137,6 @@ public:
     double xi_c(int c, int alpha, int beta)
     {
         return xi_C(c * M * M + alpha * M + beta);
-    }
-
-    bool checkConstraints() {
-        return q_a.sum() == 1 && q_b.sum() == 1 && q_c.sum() == 1 && xi_A.sum() == 1 && xi_B.sum() == 1 && xi_C.sum() == 1;
     }
 
 

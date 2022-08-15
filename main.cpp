@@ -5,9 +5,9 @@
 
 // uniform distribution for M = 2
 const Distribution uniform(2, 
-                            Eigen::Vector2d::Constant(2),
-                            Eigen::Vector2d::Constant(2),
-                            Eigen::Vector2d::Constant(2),
+                            Eigen::Vector2d::Constant(2, 0.5),
+                            Eigen::Vector2d::Constant(2, 0.5),
+                            Eigen::Vector2d::Constant(2, 0.5),
                             Eigen::VectorXd::Constant(16, 1.0/4.0),
                             Eigen::VectorXd::Constant(16, 1.0/4.0),
                             Eigen::VectorXd::Constant(16, 1.0/4.0));
