@@ -88,9 +88,7 @@ namespace NelderMeadSearch{
 
     public:
         Eigen::VectorXd getSolution(Distribution& distribution, Eigen::VectorXd p_0) {
-            if (!distribution.checkConstraints()) {
-                throw std::invalid_argument("Constraint violated");
-            }
+            distribution.checkConstraints();
 
             int M = distribution.M;
             int n = 12 * M * M + 3 * M;
