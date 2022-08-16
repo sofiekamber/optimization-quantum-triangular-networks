@@ -34,13 +34,13 @@ namespace Iterative{
     Eigen::VectorXd elegant(64);
 
     /**
-     * @brief check whether a is normalized
+     * @brief check whether a \in R^64 is normalized
      * 
      * @param a Vector (discrete distribution) to be verified
      * @param atol absolute tolerance
      */
     void normalized(Eigen::VectorXd a, double atol = 1e-4){
-        assert(1.0 - atol < a.sum() && a.sum() < 1.0 + atol && "Normalization is violated!");
+        assert(1.0 - atol < a.sum() && a.sum() < 1.0 + atol && a.size() == 64 && "Normalization is violated or vector size is != 64");
     }
 
     /**
@@ -77,7 +77,7 @@ namespace Iterative{
         const int n = 12 * M * M + 3 * M;
         //total number of variables = n
         assert(F_yk.size() == 64 && y_k.size() == n && "Dimensions of inputs to quadratic solver are wrong!");
-        Program lp (CGAL::EQUAL, true, -1.0, true, 1.0);
+        Program lp (CGAL::EQUAL, false, -1.0, false, 1.0);
 
         // change it to iteration through a sparse matrix
         // initialize the x^t * J^t * J * x minimization objective = L^2 norm
@@ -143,13 +143,13 @@ namespace Iterative{
         std::cout << "Observed objective value is: " << sol.objective_value() << std::endl;
 
         Eigen::VectorXd solution(n);
-        // TODO: copy the values of sol into the solution vector
+
         int j = 0;
         for (auto i = sol.variable_numerators_begin(); i != sol.variable_numerators_end(); i++){
             solution[j] = (*i).to_double();
             j++;
         }
-
+        
         return solution;
     }
 
@@ -172,24 +172,21 @@ namespace Iterative{
         //evaluate F(y_k) with argmin ||F(x)||_2^2 =  argmin ||G(.) - goal||_2^2
         Eigen::VectorXd F_yk = current.P - goal;
 
-        //Gauss_newton LSE without damping, since for simplex there is no y_k, we use || . ||_1 instead
+        //Gauss_newton LSE without damping, since for simplex there is no y_k, we use || . ||_2 instead
         const Eigen::SparseMatrix<double>& J = current.computeJacobian();
 
         //Constrained linear minimization problem with some exact constraints
         const Eigen::MatrixXd& LP = LPmatrix(M, J);
 
         //Solve using Simplex, since all constraints are linear
-
         Eigen::VectorXd s = quadratic_solver(M, LP, J, F_yk, y_k);
         Eigen::VectorXd next_p =  y_k - s;
 
-        //check if everything went ok
-        std::cout << next_p << std::endl;
-        std::cout << next_p.sum() << std::endl;
-        normalized(next_p);
-
         //initialize a new distribution class
         Distribution next(M, next_p);
+
+        //check if everything went ok
+        normalized(next.P);
 
         return next;
     }
@@ -203,20 +200,24 @@ namespace Iterative{
      * @param rtol relative tolerance default = 1.0e-6
      * @return Eigen::VectorXd 
      */
-    Eigen::VectorXd solve(const Distribution& initial, const Eigen::VectorXd& goal, int steps = 2, double atol = 1.0e-8, double rtol = 1.0e-6){
-        Eigen::VectorXd x_k = initial.P;
+    Eigen::VectorXd solve(const Distribution& initial, const Eigen::VectorXd& goal, int steps = 2, double atol = -1.0e-8){
+        Eigen::VectorXd F_next = initial.P;
+        Eigen::VectorXd F_prev = initial.P;
         std::shared_ptr<Distribution> next = std::make_shared<Distribution>(initial);
-        Eigen::VectorXd s;
-        std::cout << "Gauss-Newton local minima search error" << std::endl;
         std::cout << "--------------------------------------" << std::endl;
+        std::cout << "Gauss-Newton local minima search: " << std::endl;
+        std::cout << "--------------------------------------" << std::endl;
+        int counter = 0;
         do{
+            counter++;
             next = std::make_shared<Distribution>(gaussNewtonStep(*next, goal));
-            x_k = next->P;
-            std::cout << (x_k - goal).norm() << std::endl;
-            steps--;
-        }while(s.norm() > rtol * x_k.norm() && (s.norm() > atol) && steps > 0);
+            F_prev = F_next;
+            F_next = next->P;
+            std::cout << "Step " << counter << " error: " << (F_next - goal).norm() << "; Step size: " << (F_next - F_prev).norm() << std::endl;
+        }while(((F_next - F_prev).norm() > atol) && steps > counter);
 
-        return x_k;
+        std::cout << "--------------------------------------" << std::endl;
+        return F_next;
     }
 }
 
