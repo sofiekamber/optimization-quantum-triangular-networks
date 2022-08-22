@@ -100,17 +100,18 @@ namespace NelderMeadSearch{
         }
 
 
+        // get centroid of all points of simplex except worst point
         Eigen::VectorXd getCentroid(std::vector<Distribution> simplex, int worstPointIndex, int n) {
-            int M = simplex[0].M;
-            Eigen::VectorXd centroid(12 * M * M + 3 * M);
+            Eigen::VectorXd centroid(n);
 
+            std::cout << "worst point index " << worstPointIndex;
             for (int i = 0; i <= n; i++) {
                 if (i != worstPointIndex) {
                     centroid += simplex[i].getAllCoordinates();
                 }
             }
 
-            centroid /= (n + 1);
+            centroid /= n;
 
             return centroid;
         }
@@ -133,42 +134,44 @@ namespace NelderMeadSearch{
             point.segment(3*M + 4*M*M, 4*M*M) = distribution.xi_B;
             point.segment(3*M + 8*M*M, 4*M*M) = distribution.xi_C;
 
-            int vSmallest;         /* vertex with smallest value */
-            int vSecondLargest;         /* vertex with second largest value */
-            int vLargest;         /* vertex with largest value */
+            int iSmallest;         /* index of vertex with smallest value */
+            int iSecondLargest;   /* index of vertex with second largest value */
+            int iLargest;         /* index of vertex with largest value */
 
-            int i,j,row;
-            int k;   	  /* track the number of function evaluations */
-            int itr;	  /* track the number of iterations */
-
-            Eigen::MatrixXd v(n+1, n); // vertices of simplex
-            Eigen::VectorXd f(n+1); // value of function at each vertex
-
-            Eigen::VectorXd vr(n); // coordinates of reflection point
+            Eigen::VectorXd vReflect(n); // coordinates of reflection point
             Eigen::VectorXd ve(n); // coordinates of expansion point
             Eigen::VectorXd vc(n); // coordinates of contraction point
             Eigen::VectorXd vCentroid(n); // coordinates of centroid
-
-            double fr; // value of function at reflection point
-            double fe; // value of function at expansion point
-            double fc; // value of function at contraction point
-
-            double fsum,favg,s;
 
             /* create the initial simplex */
             double scale = 1.0e-4;
             std::vector<Distribution> simplex = initialize_simplex(point,n, M);
 
-            vSmallest = getIndexOfSmallestPoint(simplex, goal_P, n);
-            vLargest = getIndexOfLargestPoint(simplex, goal_P, n);
-            vSecondLargest = getIndexOfSecondLargestPoint(simplex, goal_P, vLargest, n);
+            iSmallest = getIndexOfSmallestPoint(simplex, goal_P, n);
+            iLargest = getIndexOfLargestPoint(simplex, goal_P, n);
+            iSecondLargest = getIndexOfSecondLargestPoint(simplex, goal_P, iLargest, n);
 
-            vCentroid = getCentroid(simplex, vLargest, n);
+            Distribution vSmallest_Distribution = simplex[iSmallest];
+            Distribution vLargest_Distribution = simplex[iLargest];
+            Distribution vSecondLargest_Distribution = simplex[iSecondLargest];
 
+            // calculate centroid
+            vCentroid = getCentroid(simplex, iLargest, n);
+            Distribution vCentroid_Distribution(M, vCentroid);
 
+            vCentroid_Distribution.checkConstraints();
 
-            /* find the initial function values */
-            k = n+1;
+            // reflect largest point on centroid
+            // TODO scale reflection
+            vReflect = vCentroid + (vCentroid - simplex[iLargest].getAllCoordinates());
+            Distribution vReflect_Distribution = Distribution(M, vReflect);
+//            vReflect_Distribution.checkConstraints();
+
+            // if vReflect is smaller than the second largest point and larger than the smallest, replace largest by vReflect
+            if (minimizationNorm(vReflect_Distribution.P, goal_P) < minimizationNorm(vSecondLargest_Distribution.P, goal_P)
+            && minimizationNorm(vReflect_Distribution.P, goal_P) > minimizationNorm(vSmallest_Distribution.P, goal_P)) {
+                simplex[iLargest] = vReflect_Distribution;
+            }
 
             /* print out the initial values */
 //            print_initial_simplex(simplex,n);

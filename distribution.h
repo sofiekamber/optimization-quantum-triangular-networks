@@ -8,7 +8,7 @@
 class Distribution
 {
 public:
-    const int M;
+    int M;
     Eigen::VectorXd q_a, q_b, q_c;
     Eigen::VectorXd xi_A, xi_B, xi_C;
     Eigen::VectorXd P = Eigen::VectorXd::Zero(64);
@@ -50,18 +50,18 @@ public:
      */
     void checkConstraints(const double epsilon = 1e-7) const{
         assert(q_a.sum() < 1 + epsilon && q_a.sum() > 1.0 - epsilon && "q_a is not normalized!");
-        assert(q_b.sum() < 1 + epsilon && q_a.sum() > 1.0 - epsilon && "q_b is not normalized!");
-        assert(q_c.sum() < 1 + epsilon && q_a.sum() > 1.0 - epsilon && "q_c is not normalized!");
+        assert(q_b.sum() < 1 + epsilon && q_b.sum() > 1.0 - epsilon && "q_b is not normalized!");
+        assert(q_c.sum() < 1 + epsilon && q_c.sum() > 1.0 - epsilon && "q_c is not normalized!");
         for (int i = 0; i < M*M; i++){
             double sumA = 0.0, sumB = 0.0, sumC = 0.0;
             for (int j = 0; j < 4; j++){
                 sumA += std::abs(xi_A(i + j * M * M));
-                sumB += std::abs(xi_A(i + j * M * M));
-                sumC += std::abs(xi_A(i + j * M * M));
+                sumB += std::abs(xi_B(i + j * M * M));
+                sumC += std::abs(xi_C(i + j * M * M));
             }
             assert(sumA < 1.0 + epsilon && sumA > 1.0 - epsilon && "xi_a is not normalized");
-            assert(sumB < 1.0 + epsilon && sumB > 1.0 - epsilon && "xi_a is not normalized");
-            assert(sumC < 1.0 + epsilon && sumC > 1.0 - epsilon && "xi_a is not noramlized");
+            assert(sumB < 1.0 + epsilon && sumB > 1.0 - epsilon && "xi_b is not normalized");
+            assert(sumC < 1.0 + epsilon && sumC > 1.0 - epsilon && "xi_c is not noramlized");
         }
     }
 
