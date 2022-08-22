@@ -15,10 +15,23 @@ namespace NelderMeadSearch{
         std::vector<Distribution> initialize_simplex(Eigen::VectorXd start, int n, int M)
         {
             std::vector<Distribution> simplex;
+            Distribution startDistribution(M, start);
+            simplex.push_back(startDistribution);
 
             // simplex has n + 1 vertices
-            for (int i = 0; i <= n; i++) {
-                Distribution distribution(M, start); // TODO what initial distributions?
+            for (int i = 1; i <= n; i++) {
+                Eigen::VectorXd q_a = Distribution::generate_random_q(M);
+                Eigen::VectorXd q_b = Distribution::generate_random_q(M);
+                Eigen::VectorXd q_c = Distribution::generate_random_q(M);
+                Eigen::VectorXd xi_a = Distribution::generate_random_xi(M);
+                Eigen::VectorXd xi_b = Distribution::generate_random_xi(M);
+                Eigen::VectorXd xi_c = Distribution::generate_random_xi(M);
+
+                // TODO maybe take a point between new random point an starting point (should satisfy constraint)
+                Distribution distribution(M, q_a, q_b, q_c, xi_a, xi_b, xi_c);
+
+                distribution.checkConstraints();
+
                 simplex.push_back(distribution);
             }
 
@@ -33,12 +46,12 @@ namespace NelderMeadSearch{
             std::cout << "n: " << n << "\n";
             for (int j=0;j<=n;j++) {
 
-                std::cout << "q_a: " << simplex[j].q_a << "\n";
-                std::cout << "q_b: " << simplex[j].q_b << "\n";
-                std::cout << "q_c: " << simplex[j].q_c << "\n";
-                std::cout << "xi_A: " << simplex[j].xi_A << "\n";
-                std::cout << "xi_B: " << simplex[j].xi_B << "\n";
-                std::cout << "xi_C: " << simplex[j].xi_C << "\n";
+//                std::cout << "q_a: " << simplex[j].q_a << "\n";
+//                std::cout << "q_b: " << simplex[j].q_b << "\n";
+//                std::cout << "q_c: " << simplex[j].q_c << "\n";
+//                std::cout << "xi_A: " << simplex[j].xi_A << "\n";
+//                std::cout << "xi_B: " << simplex[j].xi_B << "\n";
+//                std::cout << "xi_C: " << simplex[j].xi_C << "\n";
 
                 std::cout << "evaluated: " << simplex[j].P << "\n";
             }
@@ -86,8 +99,24 @@ namespace NelderMeadSearch{
             return secondLargestIndex;
         }
 
+
+        Eigen::VectorXd getCentroid(std::vector<Distribution> simplex, int worstPointIndex, int n) {
+            int M = simplex[0].M;
+            Eigen::VectorXd centroid(12 * M * M + 3 * M);
+
+            for (int i = 0; i <= n; i++) {
+                if (i != worstPointIndex) {
+                    centroid += simplex[i].getAllCoordinates();
+                }
+            }
+
+            centroid /= (n + 1);
+
+            return centroid;
+        }
+
     public:
-        Eigen::VectorXd getSolution(Distribution& distribution, Eigen::VectorXd p_0) {
+        Eigen::VectorXd getSolution(Distribution distribution, Eigen::VectorXd goal_P) {
             distribution.checkConstraints();
 
             int M = distribution.M;
@@ -104,9 +133,9 @@ namespace NelderMeadSearch{
             point.segment(3*M + 4*M*M, 4*M*M) = distribution.xi_B;
             point.segment(3*M + 8*M*M, 4*M*M) = distribution.xi_C;
 
-            int vs;         /* vertex with smallest value */
-            int vh;         /* vertex with next smallest value */
-            int vg;         /* vertex with largest value */
+            int vSmallest;         /* vertex with smallest value */
+            int vSecondLargest;         /* vertex with second largest value */
+            int vLargest;         /* vertex with largest value */
 
             int i,j,row;
             int k;   	  /* track the number of function evaluations */
@@ -118,7 +147,7 @@ namespace NelderMeadSearch{
             Eigen::VectorXd vr(n); // coordinates of reflection point
             Eigen::VectorXd ve(n); // coordinates of expansion point
             Eigen::VectorXd vc(n); // coordinates of contraction point
-            Eigen::VectorXd vm(n); // coordinates of centroid
+            Eigen::VectorXd vCentroid(n); // coordinates of centroid
 
             double fr; // value of function at reflection point
             double fe; // value of function at expansion point
@@ -130,11 +159,19 @@ namespace NelderMeadSearch{
             double scale = 1.0e-4;
             std::vector<Distribution> simplex = initialize_simplex(point,n, M);
 
+            vSmallest = getIndexOfSmallestPoint(simplex, goal_P, n);
+            vLargest = getIndexOfLargestPoint(simplex, goal_P, n);
+            vSecondLargest = getIndexOfSecondLargestPoint(simplex, goal_P, vLargest, n);
+
+            vCentroid = getCentroid(simplex, vLargest, n);
+
+
+
             /* find the initial function values */
             k = n+1;
 
             /* print out the initial values */
-            print_initial_simplex(simplex,n);
+//            print_initial_simplex(simplex,n);
 
             return point;
 
