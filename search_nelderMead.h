@@ -102,9 +102,9 @@ namespace NelderMeadSearch{
 
         // get centroid of all points of simplex except worst point
         Eigen::VectorXd getCentroid(std::vector<Distribution> simplex, int worstPointIndex, int n) {
-            Eigen::VectorXd centroid(n);
+            Eigen::VectorXd centroid = Eigen::VectorXd::Zero(n);
 
-            std::cout << "worst point index " << worstPointIndex;
+            std::cout << "worst point index " << worstPointIndex << std::endl;
             for (int i = 0; i <= n; i++) {
                 if (i != worstPointIndex) {
                     centroid += simplex[i].getAllCoordinates();
@@ -159,7 +159,9 @@ namespace NelderMeadSearch{
             vCentroid = getCentroid(simplex, iLargest, n);
             Distribution vCentroid_Distribution(M, vCentroid);
 
+            // std::cout << "Resulting distribution: " << vCentroid_Distribution.P.sum() << std::endl;
             vCentroid_Distribution.checkConstraints();
+
 
             // reflect largest point on centroid
             // TODO scale reflection

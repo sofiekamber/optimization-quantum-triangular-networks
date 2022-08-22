@@ -42,6 +42,16 @@ public:
         return xi;
     }
 
+    /**
+     * @brief Get the all variables as one vector
+     * 
+     * @return Concatenated vector
+     */
+    Eigen::VectorXd getAllCoordinates() {
+        Eigen::VectorXd result(12 * M * M + 3 * M);
+        result << q_a, q_b, q_c, xi_A, xi_B, xi_C;
+        return result;
+    }
 
     /**
      * @brief Verify whether the vector is normalized
@@ -137,12 +147,6 @@ public:
     double xi_c(int c, int alpha, int beta)
     {
         return xi_C(c * M * M + alpha * M + beta);
-    }
-
-    Eigen::VectorXd getAllCoordinates() {
-        Eigen::VectorXd result(12 * M * M + 3 * M);
-        result << q_a, q_b, q_c, xi_A, xi_B, xi_C;
-        return result;
     }
 
     /**
