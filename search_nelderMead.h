@@ -99,12 +99,22 @@ namespace NelderMeadSearch{
             return secondLargestIndex;
         }
 
+        void shrinkAllPoints(double scale, int indexOfBestPoint, std::vector<Distribution> &simplex) {
+            Eigen::VectorXd bestCoordinates = simplex[indexOfBestPoint].getAllCoordinates();
+            for (int i = 0; i < simplex.size(); i++) {
+                if (i != indexOfBestPoint) {
+                    Eigen::VectorXd currentCoordinates = simplex[i].getAllCoordinates();
+                    Eigen::VectorXd scaledCoordinates = bestCoordinates + scale * (currentCoordinates - bestCoordinates);
+                    simplex[i] = Distribution(simplex[i].M, scaledCoordinates);
+                }
+            }
+        }
+
 
         // get centroid of all points of simplex except worst point
         Eigen::VectorXd getCentroid(std::vector<Distribution> simplex, int worstPointIndex, int n) {
-            Eigen::VectorXd centroid(n);
+            Eigen::VectorXd centroid = Eigen::VectorXd::Zero(n);
 
-            std::cout << "worst point index " << worstPointIndex;
             for (int i = 0; i <= n; i++) {
                 if (i != worstPointIndex) {
                     centroid += simplex[i].getAllCoordinates();
@@ -139,44 +149,121 @@ namespace NelderMeadSearch{
             int iLargest;         /* index of vertex with largest value */
 
             Eigen::VectorXd vReflect(n); // coordinates of reflection point
-            Eigen::VectorXd ve(n); // coordinates of expansion point
-            Eigen::VectorXd vc(n); // coordinates of contraction point
+            Eigen::VectorXd vExpansion(n); // coordinates of expansion point
+            Eigen::VectorXd vContraction(n); // coordinates of contraction point
             Eigen::VectorXd vCentroid(n); // coordinates of centroid
 
             /* create the initial simplex */
-            double scale = 1.0e-4;
             std::vector<Distribution> simplex = initialize_simplex(point,n, M);
 
-            iSmallest = getIndexOfSmallestPoint(simplex, goal_P, n);
-            iLargest = getIndexOfLargestPoint(simplex, goal_P, n);
-            iSecondLargest = getIndexOfSecondLargestPoint(simplex, goal_P, iLargest, n);
+            const int MAX_ITERATION = 100;
 
-            Distribution vSmallest_Distribution = simplex[iSmallest];
-            Distribution vLargest_Distribution = simplex[iLargest];
-            Distribution vSecondLargest_Distribution = simplex[iSecondLargest];
+            for (int iteration = 0; iteration < MAX_ITERATION; iteration++) {
+                std::cout << "iteration " << iteration << ": ";
 
-            // calculate centroid
-            vCentroid = getCentroid(simplex, iLargest, n);
-            Distribution vCentroid_Distribution(M, vCentroid);
+                iSmallest = getIndexOfSmallestPoint(simplex, goal_P, n);
+                iLargest = getIndexOfLargestPoint(simplex, goal_P, n);
+                iSecondLargest = getIndexOfSecondLargestPoint(simplex, goal_P, iLargest, n);
 
-            vCentroid_Distribution.checkConstraints();
+                Distribution vSmallest_Distribution = simplex[iSmallest];
+                Distribution vLargest_Distribution = simplex[iLargest];
+                Distribution vSecondLargest_Distribution = simplex[iSecondLargest];
 
-            // reflect largest point on centroid
-            // TODO scale reflection
-            vReflect = vCentroid + (vCentroid - simplex[iLargest].getAllCoordinates());
-            Distribution vReflect_Distribution = Distribution(M, vReflect);
-//            vReflect_Distribution.checkConstraints();
+                // calculate centroid
+                vCentroid = getCentroid(simplex, iLargest, n);
+                Distribution vCentroid_Distribution(M, vCentroid);
+                vCentroid_Distribution.checkConstraints();
 
-            // if vReflect is smaller than the second largest point and larger than the smallest, replace largest by vReflect
-            if (minimizationNorm(vReflect_Distribution.P, goal_P) < minimizationNorm(vSecondLargest_Distribution.P, goal_P)
-            && minimizationNorm(vReflect_Distribution.P, goal_P) > minimizationNorm(vSmallest_Distribution.P, goal_P)) {
-                simplex[iLargest] = vReflect_Distribution;
+                // reflect largest point on centroid
+                vReflect = vCentroid + 0.4 * (vCentroid - simplex[iLargest].getAllCoordinates());
+                Distribution vReflect_Distribution = Distribution(M, vReflect);
+
+                if (vReflect_Distribution.satisfiesConstraints()) {
+
+                    // if vReflect is smaller than the second largest point and larger than the smallest, replace largest by vReflect
+                    // else if vReflect is smaller than smallest, do expand the reflection point
+                    if (minimizationNorm(vReflect_Distribution.P, goal_P) < minimizationNorm(vSecondLargest_Distribution.P, goal_P)
+                        && minimizationNorm(vReflect_Distribution.P, goal_P) > minimizationNorm(vSmallest_Distribution.P, goal_P)) {
+                        simplex[iLargest] = vReflect_Distribution;
+                        std::cout << "Reflection" << std::endl;
+                        continue;
+                    } else if (minimizationNorm(vReflect_Distribution.P, goal_P) <= minimizationNorm(vSmallest_Distribution.P, goal_P)) {
+                        vExpansion = vCentroid + 2 * (vReflect - vCentroid);
+                        Distribution vExpansion_Distribution = Distribution(M, vExpansion);
+
+                        if (vExpansion_Distribution.satisfiesConstraints()) {
+
+
+                            if (minimizationNorm(vExpansion_Distribution.P, goal_P) < minimizationNorm(vReflect_Distribution.P, goal_P)) {
+                                simplex[iLargest] = vExpansion_Distribution;
+                                std::cout << "Expansion" << std::endl;
+                                continue;
+                            } else {
+                                simplex[iLargest] = vReflect_Distribution;
+                                std::cout << "Reflection" << std::endl;
+                                continue;
+                            }
+
+                        } else { // vExpansion does not satisfy constraint, just use reflection
+                            simplex[iLargest] = vReflect_Distribution;
+                            std::cout << "Reflection" << std::endl;
+                            continue;
+                        }
+                    } else { // reflection point is not better than second worst, use contraction
+                        if (minimizationNorm(vReflect_Distribution.P, goal_P) >= minimizationNorm(vSecondLargest_Distribution.P, goal_P)) {
+                            // reflection is better than worst
+                            if (minimizationNorm(vReflect_Distribution.P, goal_P) < minimizationNorm(vSecondLargest_Distribution.P, goal_P)) {
+                                vContraction = vCentroid + 0.5 * (vReflect - vCentroid);
+                                Distribution vContraction_Distribution = Distribution(M, vContraction);
+                                vContraction_Distribution.checkConstraints(); // contraction point should always satisfy constraints
+
+                                // if contraction point is better than reflection point, replace worst with contraction point
+                                if (minimizationNorm(vContraction_Distribution.P, goal_P) < minimizationNorm(vReflect_Distribution.P, goal_P)) {
+                                    simplex[iLargest] = vContraction_Distribution;
+                                    std::cout << "Contraction outside" << std::endl;
+                                    continue;
+                                } else {
+                                    // shrink
+                                    shrinkAllPoints(0.5, iSmallest, simplex);
+                                    std::cout << "Shrink" << std::endl;
+                                    continue;
+                                }
+                            } else { // reflection is worse than worst
+                                vContraction = vCentroid + 0.5 * (vLargest_Distribution.getAllCoordinates() - vCentroid);
+                                Distribution vContraction_Distribution = Distribution(M, vContraction);
+                                vContraction_Distribution.checkConstraints();
+
+                                if (minimizationNorm(vContraction_Distribution.P, goal_P) < minimizationNorm(vLargest_Distribution.P, goal_P)) {
+                                    simplex[iLargest] = vContraction_Distribution;
+                                    std::cout << "Contraction inside" << std::endl;
+                                    continue;
+                                } else {
+                                    // shrink
+                                    shrinkAllPoints(0.5, iSmallest, simplex);
+                                    std::cout << "Shrink" << std::endl;
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                } else { // vReflect does not satisfy constraint
+                    vContraction = vCentroid + 0.5 * (vLargest_Distribution.getAllCoordinates() - vCentroid);
+                    Distribution vContraction_Distribution = Distribution(M, vContraction);
+                    if (minimizationNorm(vContraction_Distribution.P, goal_P) < minimizationNorm(vLargest_Distribution.P, goal_P)) {
+                        simplex[iSmallest] = vContraction_Distribution;
+                        std::cout << "Contraction because reflection does not satisfy constraints" << std::endl;
+                        continue;
+                    } else {
+                        // shrink
+                        shrinkAllPoints(0.5, iSmallest, simplex);
+                        std::cout << "Shrink" << std::endl;
+                        continue;
+                    }
+                }
+
             }
 
-            /* print out the initial values */
-//            print_initial_simplex(simplex,n);
-
-            return point;
+            return simplex[iSmallest].P;
 
         }
 
