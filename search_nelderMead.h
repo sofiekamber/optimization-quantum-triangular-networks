@@ -153,6 +153,11 @@ namespace NelderMeadSearch {
             Eigen::VectorXd vContraction(n); // coordinates of contraction point
             Eigen::VectorXd vCentroid(n); // coordinates of centroid
 
+            double const ALPHA = 0.3; // used for reflection
+            double const GAMMA = 2.0; // used for expansion
+            double const BETA = 0.5; // used for contraction
+            double const DELTA = 0.5; // used for shrinkage
+
             /* create the initial simplex */
             std::vector<Distribution> simplex = initialize_simplex(point, n, M);
 
@@ -177,7 +182,7 @@ namespace NelderMeadSearch {
                 vCentroid_Distribution.checkConstraints();
 
                 // reflect largest point on centroid
-                vReflect = vCentroid + 0.4 * (vCentroid - simplex[iLargest].getAllCoordinates());
+                vReflect = vCentroid + ALPHA * (vCentroid - simplex[iLargest].getAllCoordinates());
                 Distribution vReflect_Distribution = Distribution(M, vReflect);
 
                 if (vReflect_Distribution.satisfiesConstraints()) {
@@ -192,7 +197,7 @@ namespace NelderMeadSearch {
                         continue;
                     } else if (minimizationNorm(vReflect_Distribution.P, goal_P) <=
                                minimizationNorm(vSmallest_Distribution.P, goal_P)) {
-                        vExpansion = vCentroid + 1.5 * (vReflect - vCentroid);
+                        vExpansion = vCentroid + GAMMA * (vReflect - vCentroid);
                         Distribution vExpansion_Distribution = Distribution(M, vExpansion);
 
                         if (vExpansion_Distribution.satisfiesConstraints()) {
@@ -216,7 +221,7 @@ namespace NelderMeadSearch {
                         // reflection is better than worst
                         if (minimizationNorm(vReflect_Distribution.P, goal_P) <
                             minimizationNorm(vLargest_Distribution.P, goal_P)) {
-                            vContraction = vCentroid + 0.5 * (vReflect - vCentroid);
+                            vContraction = vCentroid + BETA * (vReflect - vCentroid);
                             Distribution vContraction_Distribution = Distribution(M, vContraction);
                             vContraction_Distribution.checkConstraints(); // contraction point should always satisfy constraints
 
@@ -228,13 +233,13 @@ namespace NelderMeadSearch {
                                 continue;
                             } else {
                                 // shrink
-                                shrinkAllPoints(0.5, iSmallest, simplex);
+                                shrinkAllPoints(DELTA, iSmallest, simplex);
                                 std::cout << "Shrink" << std::endl;
                                 continue;
                             }
                         } else { // reflection is worse or equal than worst
                             vContraction =
-                                    vCentroid + 0.5 * (vLargest_Distribution.getAllCoordinates() - vCentroid);
+                                    vCentroid + BETA * (vLargest_Distribution.getAllCoordinates() - vCentroid);
                             Distribution vContraction_Distribution = Distribution(M, vContraction);
                             vContraction_Distribution.checkConstraints();
 
@@ -245,14 +250,14 @@ namespace NelderMeadSearch {
                                 continue;
                             } else {
                                 // shrink
-                                shrinkAllPoints(0.5, iSmallest, simplex);
+                                shrinkAllPoints(DELTA, iSmallest, simplex);
                                 std::cout << "Shrink" << std::endl;
                                 continue;
                             }
                         }
                     }
                 } else { // vReflect does not satisfy constraint
-                    vContraction = vCentroid + 0.5 * (vLargest_Distribution.getAllCoordinates() - vCentroid);
+                    vContraction = vCentroid + BETA * (vLargest_Distribution.getAllCoordinates() - vCentroid);
                     Distribution vContraction_Distribution = Distribution(M, vContraction);
                     if (minimizationNorm(vContraction_Distribution.P, goal_P) <
                         minimizationNorm(vLargest_Distribution.P, goal_P)) {
@@ -261,7 +266,7 @@ namespace NelderMeadSearch {
                         continue;
                     } else {
                         // shrink
-                        shrinkAllPoints(0.5, iSmallest, simplex);
+                        shrinkAllPoints(DELTA, iSmallest, simplex);
                         std::cout << "Shrink" << std::endl;
                         continue;
                     }

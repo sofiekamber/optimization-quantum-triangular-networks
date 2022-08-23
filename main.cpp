@@ -15,6 +15,29 @@ const Distribution uniform(2,
 
 const Eigen::VectorXd uniform_vec = Eigen::VectorXd::Constant(64, 1./64.);
 
+Eigen::VectorXd elegantJointDistribution() {
+    Eigen::VectorXd p(64);
+    for (int a = 0; a < 4; a++) {
+        for (int b = 0; b < 4; b++) {
+            for (int c = 0; c < 4; c++) {
+                double value;
+                if (a == b && b == c && a == c) {
+                    value = 25.0 / 256.0;
+                } else if (a != b && b != c && a != c) {
+                    value = 5.0 / 256.0;
+                } else {
+                    value = 1.0 / 256.0;
+                }
+                p[a * 16 + b * 4 + c] = value;
+            }
+        }
+    }
+
+    assert(p.sum() == 1.0);
+
+    return p;
+}
+
 int main() {
     srand((unsigned int) time(0));
 
@@ -26,20 +49,18 @@ int main() {
                             Eigen::VectorXd::Constant(16, 1.0/4.0),
                             Eigen::VectorXd::Constant(16, 1.0/4.0));
 
-    const Distribution completelyRandom(2,
-                                        Distribution::generate_random_q(2),
-                                        Distribution::generate_random_q(2),
-                                        Distribution::generate_random_q(2),
-                                        Distribution::generate_random_xi(2),
-                                        Distribution::generate_random_xi(2),
-                                        Distribution::generate_random_xi(2));
+    const Distribution completelyRandom(3,
+                                        Distribution::generate_random_q(3),
+                                        Distribution::generate_random_q(3),
+                                        Distribution::generate_random_q(3),
+                                        Distribution::generate_random_xi(3),
+                                        Distribution::generate_random_xi(3),
+                                        Distribution::generate_random_xi(3));
 
-    NelderMeadSearch::NelderMeadSearch Sth;
-    Sth.getSolution(completelyRandom, uniform_vec);
-//
+    NelderMeadSearch::NelderMeadSearch search;
+    search.getSolution(completelyRandom, elegantJointDistribution());
+
     Eigen::VectorXd sol = Iterative::solve(something, uniform_vec, 3U);
-//    NelderMeadSearch::NelderMeadSearch search;
-//    Eigen::VectorXd sol2 = search.getSolution(something, uniform_vec);
 
 //    std::cout << "What we got as an approximation: " << std::endl;
 //    std::cout << sol << std::endl;
