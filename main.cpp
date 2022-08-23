@@ -1,6 +1,7 @@
 #include <iostream>
 #include <eigen3/Eigen/Dense>
 #include "iterative.h"
+#include "search_nelderMead.h"
 #include "distribution.h"
 
 // uniform distribution for M = 2
@@ -26,6 +27,9 @@ int main() {
                             Eigen::VectorXd::Constant(16, 1.0/4.0));
 
     std::cout << "Hello, World!" << std::endl;
+
+    NelderMeadSearch::NelderMeadSearch Sth;
+    Sth.getSolution(something, uniform_vec);
 
     Eigen::VectorXd sol = Iterative::solve(something, uniform_vec, 3U);
 
