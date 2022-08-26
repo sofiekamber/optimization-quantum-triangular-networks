@@ -122,6 +122,26 @@ namespace NelderMeadSearch {
             return centroid;
         }
 
+        void putNewPointInRightOrder(std::vector<Distribution> &simplex, Eigen::VectorXd goal_P, int n) {
+            Distribution newPoint = simplex[0];
+            for (int i = 0; i < simplex.size(); i++) {
+                if (i == simplex.size() - 1) {
+                    simplex.push_back(newPoint);
+                    break;
+                } else if (minimizationNorm(newPoint.P, goal_P) < minimizationNorm(simplex[i].P, goal_P) &&
+                        minimizationNorm(newPoint.P, goal_P) >= minimizationNorm(simplex[i + 1].P, goal_P)) {
+                    simplex.insert(simplex.begin() + i + 1, newPoint);
+
+                    break;
+                }
+            }
+
+            // remove first element
+            simplex.erase(simplex.begin());
+
+            assert (simplex.size() == n + 1);
+        }
+
     public:
         Distribution getSolution(Distribution distribution, Eigen::VectorXd goal_P) {
             distribution.checkConstraints();
@@ -146,7 +166,7 @@ namespace NelderMeadSearch {
             Eigen::VectorXd vCentroid(n); // coordinates of centroid
 
             double const ALPHA = 1.0; // used for reflection
-            double const GAMMA = 2.0; // used for expansion
+            double const GAMMA = 1.5; // used for expansion
             double const BETA = 0.5; // used for contraction
             double const DELTA = 0.5; // used for shrinkage
 
@@ -156,23 +176,19 @@ namespace NelderMeadSearch {
 
             std::cout << "simplex initialized " << simplex.size() << "/" << n << std::endl;
 
-//            Eigen::MatrixXd m(n, n + 1);
-//            for (int i = 0; i < simplex.size(); i++) {
-//                m.col(i) = simplex[i].getAllCoordinates();
-//            }
-//            std::cout << m;
 
             const int MAX_ITERATION = 6000;
 
 //            std::random_device rd; // obtain a random number from hardware
 //            std::mt19937 gen(rd()); // seed the generator
 //            std::uniform_int_distribution<> distr(0, simplex.size()-1); // define the range
+            sort(simplex.begin(), simplex.end(), [this, goal_P](const Distribution &lhs, const Distribution &rhs) {
+                return minimizationNorm(lhs.P, goal_P) > minimizationNorm(rhs.P, goal_P);
+            });
 
             for (int iteration = 0; iteration < MAX_ITERATION; iteration++) {
-
-                sort(simplex.begin(), simplex.end(), [this, goal_P](const Distribution &lhs, const Distribution &rhs) {
-                    return minimizationNorm(lhs.P, goal_P) > minimizationNorm(rhs.P, goal_P);
-                });
+                // the worst point is the only one that got updated
+                putNewPointInRightOrder(simplex, goal_P, n);
 
                 std::cout << "error " << minimizationNorm(simplex[n].P, goal_P) << " in iteration " << iteration
                           << std::endl;
@@ -257,7 +273,7 @@ namespace NelderMeadSearch {
                                 // shrink
                                 shrinkAllPoints(DELTA, simplex);
                                 std::cout << "Shrink" << std::endl;
-                                continue;
+                                break;
                             }
                         } else { // reflection is worse or equal than worst
                             vContraction =
@@ -274,7 +290,7 @@ namespace NelderMeadSearch {
                                 // shrink
                                 shrinkAllPoints(DELTA, simplex);
                                 std::cout << "Shrink" << std::endl;
-                                continue;
+                                break;
                             }
                         }
                     }
@@ -290,7 +306,7 @@ namespace NelderMeadSearch {
                         // shrink
                         shrinkAllPoints(DELTA, simplex);
                         std::cout << "Shrink" << std::endl;
-                        continue;
+                        break;
                     }
                 }
 
