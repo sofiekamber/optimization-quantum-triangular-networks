@@ -155,7 +155,7 @@ namespace Iterative{
 
         Eigen::VectorXd solution(n);
 
-        CGAL::print_quadratic_program(std::cout, lp, "first_lp");
+        // CGAL::print_quadratic_program(std::cout, lp, "first_lp");
 
         int j = 0;
         for (auto i = sol.variable_numerators_begin(); i != sol.variable_numerators_end(); i++){
