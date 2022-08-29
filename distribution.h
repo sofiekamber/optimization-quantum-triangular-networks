@@ -42,15 +42,32 @@ public:
         return xi;
     }
 
-    /**
-     * @brief Get the all variables as one vector
-     * 
-     * @return Concatenated vector
-     */
-    Eigen::VectorXd getAllCoordinates() {
-        Eigen::VectorXd result(12 * M * M + 3 * M);
-        result << q_a, q_b, q_c, xi_A, xi_B, xi_C;
-        return result;
+    bool satisfiesConstraints(const double epsilon = 1e-7) {
+        bool qConstraint = q_a.sum() < 1 + epsilon && q_a.sum() > 1.0 - epsilon &&
+                q_b.sum() < 1 + epsilon && q_b.sum() > 1.0 - epsilon &&
+                q_c.sum() < 1 + epsilon && q_c.sum() > 1.0 - epsilon;
+
+        if (!qConstraint) {
+            return false;
+        }
+
+        for (int i = 0; i < M*M; i++){
+            double sumA = 0.0, sumB = 0.0, sumC = 0.0;
+            for (int j = 0; j < 4; j++){
+                sumA += std::abs(xi_A(i + j * M * M));
+                sumB += std::abs(xi_B(i + j * M * M));
+                sumC += std::abs(xi_C(i + j * M * M));
+            }
+            bool xiConstraint = sumA < 1.0 + epsilon && sumA > 1.0 - epsilon &&
+                    sumB < 1.0 + epsilon && sumB > 1.0 - epsilon &&
+                    sumC < 1.0 + epsilon && sumC > 1.0 - epsilon;
+
+            if (!xiConstraint) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -147,6 +164,12 @@ public:
     double xi_c(int c, int alpha, int beta)
     {
         return xi_C(c * M * M + alpha * M + beta);
+    }
+
+    Eigen::VectorXd getAllCoordinates() {
+        Eigen::VectorXd result(12 * M * M + 3 * M);
+        result << q_a, q_b, q_c, xi_A, xi_B, xi_C;
+        return result;
     }
 
     /**

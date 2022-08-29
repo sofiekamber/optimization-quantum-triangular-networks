@@ -1,3 +1,0 @@
-/home/baburini/projects/oqtn/optimization-quantum-triangular-networks/build/CMakeFiles/optimization_quantum_triangular_networks.dir
-/home/baburini/projects/oqtn/optimization-quantum-triangular-networks/build/CMakeFiles/edit_cache.dir
-/home/baburini/projects/oqtn/optimization-quantum-triangular-networks/build/CMakeFiles/rebuild_cache.dir

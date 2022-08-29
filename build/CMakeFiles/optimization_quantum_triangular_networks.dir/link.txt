@@ -1,1 +1,0 @@
-/usr/bin/g++ -g CMakeFiles/optimization_quantum_triangular_networks.dir/main.cpp.o -o optimization_quantum_triangular_networks 
