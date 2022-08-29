@@ -13,6 +13,14 @@ const Distribution uniform(2,
                             Eigen::VectorXd::Constant(16, 1.0/4.0),
                             Eigen::VectorXd::Constant(16, 1.0/4.0));
 
+const Distribution uniform_1(1,
+                            Eigen::VectorXd::Ones(1),
+                            Eigen::VectorXd::Ones(1),
+                            Eigen::VectorXd::Ones(1),
+                            Eigen::VectorXd::Constant(4, 1.0/4.0),
+                            Eigen::VectorXd::Constant(4, 1.0/4.0),
+                            Eigen::VectorXd::Constant(4, 1.0/4.0));
+
 const Eigen::VectorXd uniform_vec = Eigen::VectorXd::Constant(64, 1./64.);
 
 Eigen::VectorXd elegantJointDistribution() {
@@ -38,7 +46,31 @@ Eigen::VectorXd elegantJointDistribution() {
     return p;
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    
+    bool neadMelder = true, iterative = true, test = false;
+    if (argc > 2){
+        std::cout << "invalid number of arguments entered" << std::endl;
+        return 0;
+    }
+    if (argc == 2){
+        if (std::string(argv[1]) == "--neadmelder"){
+            iterative = false;
+        }
+        else if (std::string(argv[1]) == "--gauss"){
+            neadMelder = false;
+        }
+        else if (std::string(argv[1]) == "--test"){
+            test = true;
+            neadMelder = false;
+            iterative = false;
+        }
+        else{
+            std::cout << "Invalid flag, use {--neadmelder, --gauss, --test} or default" << std::endl;
+            std::cout << "Received flag: "<< argv[1] << std::endl;
+            return 0;
+        }
+    }
     srand((unsigned int) time(0));
 
     const Distribution something(2,
@@ -56,14 +88,21 @@ int main() {
                                         Distribution::generate_random_xi(3),
                                         Distribution::generate_random_xi(3),
                                         Distribution::generate_random_xi(3));
+    if (neadMelder){
+        NelderMeadSearch::NelderMeadSearch search;
+        search.getSolution(completelyRandom, elegantJointDistribution());
+    }
 
-    NelderMeadSearch::NelderMeadSearch search;
-    search.getSolution(completelyRandom, elegantJointDistribution());
+    if (iterative){
+        Eigen::VectorXd sol = Iterative::solve(something, elegantJointDistribution(), 1U);       
+    //    std::cout << "What we got as an approximation: " << std::endl;
+    //    std::cout << sol << std::endl;
+    }
 
-    Eigen::VectorXd sol = Iterative::solve(something, uniform_vec, 3U);
 
-//    std::cout << "What we got as an approximation: " << std::endl;
-//    std::cout << sol << std::endl;
+    if (test){
+        // TODO
+    }
 
     return 0;
 }

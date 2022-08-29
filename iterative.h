@@ -16,13 +16,9 @@
 #include "distribution.h"
 
 // choose the fastest available solver (float)
-#ifdef CGAL_USE_GMP
-#include <CGAL/Gmpzf.h>
-typedef CGAL::Gmpzf ET;
-#else
 #include <CGAL/MP_Float.h>
 typedef CGAL::MP_Float ET;
-#endif
+
 
 // program and solution types
 typedef CGAL::Quadratic_program<double> Program;
@@ -44,7 +40,7 @@ namespace Iterative{
     }
 
     /**
-     * @brief Constructs a simplex matrix corresponding to argmin || Js - b ||_1 with ||s||_1 = 0 [according to q_a, q_b ... xi_c] 
+     * @brief Constructs a simplex matrix corresponding to argmin || Js - b ||_2 with ||s||_1 = 0 [according to q_a, q_b ... xi_c] 
      * (the zero norm condition required so that the step preserves the norm)
      * @param M discretization constant
      * @param J Jacobian
@@ -52,7 +48,8 @@ namespace Iterative{
      */
     Eigen::MatrixXd LPmatrix(int M, const Eigen::SparseMatrix<double>& J){
         int n = 12 * M * M + 4 * M;
-        Eigen::MatrixXd LP = J.transpose() * J;
+        Eigen::SparseMatrix<double> JT = J.transpose();
+        Eigen::MatrixXd LP = JT * J;
         return LP;
     }
 
@@ -79,74 +76,90 @@ namespace Iterative{
         assert(F_yk.size() == 64 && y_k.size() == n && "Dimensions of inputs to quadratic solver are wrong!");
         Program lp (CGAL::EQUAL, false, -1.0, false, 1.0);
 
-        // change it to iteration through a sparse matrix
+        // equality of 0 norm in each step for normalization
+        for (int j = 0; j < n; j++){
+            lp.set_b(j, 0);
+        }
+
+        /*
+        IDEA: improve speed by reducing double precision
+        */
         // initialize the x^t * J^t * J * x minimization objective = L^2 norm
         // note: we define double the value of matrix here (needed for CGAL)
-        for (int i = 0; i < M; i++){
+        for (int i = 0; i < n; i++){
             for (int j = 0; j <= i; j++){
                 lp.set_d(i, j, 2 * LP(i, j));
             }
         }
 
         // initialize: - 2 b^t * J * x
-        Eigen::VectorXd c = F_yk.transpose() * J;
-        for (int i = 0; i < M; i++){
+        Eigen::SparseMatrix<double> JT = J.transpose();
+        Eigen::VectorXd c = JT * F_yk;
+        for (int i = 0; i < n; i++){
             lp.set_c(i, -2 * c(i));
         }
 
         // initialize b^t * b
         lp.set_c0(F_yk.squaredNorm());
 
+        assert(abs( ((LP * y_k).dot(y_k) - 2 * c.dot(y_k) + F_yk.squaredNorm()) - (J * y_k - F_yk).squaredNorm() ) < 1e-7 
+                    && "LP was incorrectly initialized");
+
         // a helper function to access the values of xi_? easier
         auto xi = [&M](int v, int fst, int snd)->int{
-            return v * M * M + fst * M * snd;
+            return v * M * M + fst * M + snd;
         };
 
-        unsigned int offset = 0;
+        // !NOTE! In CGAL first number is the column number <=> variable number [veery stupid idea]
+        // Thus first value is variable, second is constraint (when using set_a)
 
-        // default values in CGAL are 0s ==> no need to change b
-
+        int offset = 0;
+        int var_offset = 0;
         // now set the normalization constraints for q_a, q_b, q_c
         for (int j = 0; j < M; j++){
-            lp.set_a(offset + 0, j, 1.0);
-            lp.set_a(offset + 1, M + j, 1.0);
-            lp.set_a(offset + 2, 2*M + j, 1.0);
+            lp.set_a(j, offset + 0, 1.0);
+            lp.set_a(M + j, offset + 1, 1.0);
+            lp.set_a(2*M + j, offset + 2, 1.0);
         }
         offset += 3;
+        var_offset += 3 * M;
 
         // now set the normalization constraints for xi_a, xi_b, xi_c (three in total)
-        for (int l = 0; l < 2; l++){
+        for (int l = 0; l < 3; l++){
             for (int i = 0; i < M; i++){
                 for (int j = 0; j < M ; j++){
-                    lp.set_a(offset + i * M + j, xi(0, i, j), 1.0);
-                    lp.set_a(offset + i * M + j, xi(1, i, j), 1.0);
-                    lp.set_a(offset + i * M + j, xi(2, i, j), 1.0);
-                    lp.set_a(offset + i * M + j, xi(3, i, j), 1.0);
+                    lp.set_a(var_offset + xi(0, i, j), offset + i * M + j, 1.0);
+                    lp.set_a(var_offset + xi(1, i, j), offset + i * M + j, 1.0);
+                    lp.set_a(var_offset + xi(2, i, j), offset + i * M + j, 1.0);
+                    lp.set_a(var_offset + xi(3, i, j), offset + i * M + j, 1.0);
                 }
             }
             offset += M*M;
+            var_offset += 4 * M * M;
         }
 
         // setting the values of upper boundary as y_k      
         for (int i = 0; i < n; i++){
-            lp.set_u(i, y_k(i));
+            lp.set_u(i, true, y_k(i));
         }
 
         // setting the value of the lower boundary as y_k - 1.0
         for (int i = 0; i < n; i++){
-            lp.set_l(i, y_k(i) - 1.0);
+            lp.set_l(i, true, y_k(i) - 1.0);
         }
 
         Solution sol = CGAL::solve_quadratic_program(lp, ET());
-        assert(sol.solves_quadratic_program(lp) && "Solution doesn't work, might be infeasible?");
+        // assert(sol.solves_quadratic_program(lp) && "Solution doesn't work, might be infeasible?");
 
         std::cout << "Observed objective value is: " << sol.objective_value() << std::endl;
 
         Eigen::VectorXd solution(n);
 
+        CGAL::print_quadratic_program(std::cout, lp, "first_lp");
+
         int j = 0;
         for (auto i = sol.variable_numerators_begin(); i != sol.variable_numerators_end(); i++){
-            solution[j] = (*i).to_double();
+            solution[j] = CGAL::to_double(*i);
             j++;
         }
         
@@ -187,6 +200,8 @@ namespace Iterative{
 
         //check if everything went ok
         normalized(next.P);
+
+        std::cout << (next.P - current.P).norm() << std::endl;
 
         return next;
     }
