@@ -164,19 +164,8 @@ public:
         assert(a >= 0 && a < 4 && "Invalid parameter a!");
         assert(b >= 0 && b < 4 && "Invalid parameter b!");
         assert(c >= 0 && c < 4 && "Invalid parameter c!");
-        double value = 0;
-        for (int i = 0; i < M; i++)
-        {
-            for (int j = 0; j < M; j++)
-            {
-                for (int k = 0; k < M; k++)
-                {
-                    value += q_a[i] * q_b[j] * q_c[k] * xi_a(a, j, k) * xi_b(b, i, k) * xi_c(c, i, j);
-                }
-            }
-        }
-        P[a * 16 + b * 4 + c] = value;
-        return value;
+        
+        return P[a * 16 + b * 4 + c];
     }
 
     /**
