@@ -14,6 +14,13 @@ namespace NelderMeadSearch {
 
     class NelderMeadSearch {
 
+        /**
+         * Generates a large simplex
+         * @param start initial point
+         * @param n
+         * @param M
+         * @return
+         */
         std::vector<Distribution> initializeStructuredSimplex(Eigen::VectorXd start, int n, int M) {
             std::vector<Distribution> simplex;
             Distribution startDistribution(M, start);
@@ -63,6 +70,11 @@ namespace NelderMeadSearch {
             return simplex;
         }
 
+        /**
+         * Helper function to generate a random distribution for a given M.
+         * @param M
+         * @return
+         */
         Distribution getRandomDistribution(int M) {
             Eigen::VectorXd q_a = Distribution::generate_random_q(M);
             Eigen::VectorXd q_b = Distribution::generate_random_q(M);
@@ -78,8 +90,14 @@ namespace NelderMeadSearch {
             return distribution;
         }
 
-        /* create the initial simplex */
-        std::vector<Distribution> intializeRandomSimplex(Eigen::VectorXd start, int n, int M) {
+        /**
+         * Generates a vector of n + 1 random distributions.
+         * @param start
+         * @param n
+         * @param M
+         * @return
+         */
+        std::vector<Distribution> initializeRandomSimplex(Eigen::VectorXd start, int n, int M) {
             std::vector<Distribution> simplex;
             Distribution startDistribution(M, start);
             simplex.push_back(startDistribution);
@@ -93,10 +111,23 @@ namespace NelderMeadSearch {
 
         }
 
+        /**
+         * Helper function to get l2 norm of difference of two vectors.
+         * @param current
+         * @param p_0
+         * @return
+         */
         double minimizationNorm(Eigen::VectorXd current, Eigen::VectorXd p_0) {
             return (p_0 - current).norm();
         }
 
+        /**
+         * Shrinks all points of simplex except the best.
+         * @param scale
+         * @param simplex
+         * @param lastActionWasShrink
+         * @param numberOfShrinks
+         */
         void shrinkAllPoints(double scale, std::vector<Distribution> &simplex, bool &lastActionWasShrink, int &numberOfShrinks) {
             if (lastActionWasShrink) {
                 numberOfShrinks++;
@@ -116,7 +147,12 @@ namespace NelderMeadSearch {
             }
         }
 
-        // get centroid of all points of simplex except worst point
+        /**
+         * Get centroid of all points of simplex except worst point.
+         * @param simplex
+         * @param n
+         * @return
+         */
         Eigen::VectorXd getCentroid(std::vector<Distribution> simplex, int n) {
             Eigen::VectorXd centroid = Eigen::VectorXd::Zero(n);
 
@@ -129,6 +165,12 @@ namespace NelderMeadSearch {
             return centroid;
         }
 
+        /**
+         * Puts the first point of the simplex in the right order.
+         * @param simplex
+         * @param goal_P
+         * @param n
+         */
         void putNewPointInRightOrder(std::vector<Distribution> &simplex, Eigen::VectorXd goal_P, int n) {
             Distribution newPoint = simplex[0];
             for (int i = 0; i < simplex.size(); i++) {
@@ -178,7 +220,7 @@ namespace NelderMeadSearch {
             double const DELTA = 0.5; // used for shrinkage
 
             /* create the initial simplex */
-            std::vector<Distribution> simplex = intializeRandomSimplex(point, n, M);
+            std::vector<Distribution> simplex = initializeRandomSimplex(point, n, M);
 //            std::vector<Distribution> simplex = initializeStructuredSimplex(point, n, M);
 
             std::cout << "simplex initialized " << simplex.size() << "/" << n << std::endl;
