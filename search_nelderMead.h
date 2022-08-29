@@ -97,7 +97,14 @@ namespace NelderMeadSearch {
             return (p_0 - current).norm();
         }
 
-        void shrinkAllPoints(double scale, std::vector<Distribution> &simplex) {
+        void shrinkAllPoints(double scale, std::vector<Distribution> &simplex, bool &lastActionWasShrink, int &numberOfShrinks) {
+            if (lastActionWasShrink) {
+                numberOfShrinks++;
+            } else {
+                numberOfShrinks = 1;
+            }
+
+            lastActionWasShrink = true;
             Eigen::VectorXd bestCoordinates = simplex[simplex.size() - 1].getAllCoordinates();
             // shrink all except for best
             for (int i = 0; i < simplex.size() - 1; i++) {
@@ -177,20 +184,44 @@ namespace NelderMeadSearch {
             std::cout << "simplex initialized " << simplex.size() << "/" << n << std::endl;
 
 
-            const int MAX_ITERATION = 6000;
+            const int MAX_ITERATION = 100000;
+            double errorBefore = 0.0;
+            double tolerance = 1e-7;
+            bool lastActionWasShrink = false;
+            int numberOfShrinks = 0;
 
-//            std::random_device rd; // obtain a random number from hardware
-//            std::mt19937 gen(rd()); // seed the generator
-//            std::uniform_int_distribution<> distr(0, simplex.size()-1); // define the range
             sort(simplex.begin(), simplex.end(), [this, goal_P](const Distribution &lhs, const Distribution &rhs) {
                 return minimizationNorm(lhs.P, goal_P) > minimizationNorm(rhs.P, goal_P);
             });
 
-            for (int iteration = 0; iteration < MAX_ITERATION; iteration++) {
+            // initialize weights, the worse the point, the higher the weight
+            int weights[n + 1];
+            int sum = 0;
+            for (int i = 0; i < n + 1; i++) {
+                int weight = n - i;
+                weights[i] = weight;
+                sum += weight;
+            }
+
+            std::random_device rd; // obtain a random number from hardware
+            std::mt19937 gen(rd()); // seed the generator
+            std::uniform_int_distribution<> distr(0, sum); // define the range
+
+            for (int iteration = 1; iteration < MAX_ITERATION; iteration++) {
                 // the worst point is the only one that got updated
                 putNewPointInRightOrder(simplex, goal_P, n);
 
-                std::cout << "error " << minimizationNorm(simplex[n].P, goal_P) << " in iteration " << iteration
+                double error = minimizationNorm(simplex[n].P, goal_P);
+
+                // stopping criteria: stop when error has been the same for 100 iterations or
+                if (iteration % 100 == 0 || (lastActionWasShrink && numberOfShrinks == 3)) {
+                    if (std::abs(errorBefore - error) < tolerance) {
+                        break;
+                    }
+                    errorBefore = error;
+                }
+
+                std::cout << "error " << error << " in iteration " << iteration
                           << std::endl;
 
                 Distribution vSmallest_Distribution = simplex[n];
@@ -205,19 +236,22 @@ namespace NelderMeadSearch {
                 // reflect largest point on centroid
                 vReflect = vCentroid + ALPHA * (vCentroid - simplex[0].getAllCoordinates());
 
+                int rnd = distr(gen);
+
                 bool constraintsOk = Distribution(M, vReflect).satisfiesConstraints();
                 int counter = 1;
                 while (!constraintsOk) {
                     Eigen::VectorXd temp = vCentroid + ALPHA * (vCentroid - simplex[counter].getAllCoordinates());
                     Distribution tempDis = Distribution(M, temp);
                     constraintsOk = tempDis.satisfiesConstraints();
-                    if (constraintsOk) {
+                    if (constraintsOk && rnd < weights[counter]) {
                         vReflect = temp;
                     }
                     if (counter == n) {
                         std::cout << "terminate" << std::endl;
                         constraintsOk = true;
                     }
+                    rnd -= weights[counter];
                     counter++;
                 }
 
@@ -232,6 +266,7 @@ namespace NelderMeadSearch {
                            minimizationNorm(vSmallest_Distribution.P, goal_P)) {
                         simplex[0] = vReflect_Distribution;
                         std::cout << "Reflection" << std::endl;
+                        lastActionWasShrink = false;
                         continue;
                     } else if (minimizationNorm(vReflect_Distribution.P, goal_P) <
                                minimizationNorm(vSmallest_Distribution.P, goal_P)) {
@@ -243,16 +278,19 @@ namespace NelderMeadSearch {
                                 minimizationNorm(vReflect_Distribution.P, goal_P)) {
                                 simplex[0] = vExpansion_Distribution;
                                 std::cout << "Expansion" << std::endl;
+                                lastActionWasShrink = false;
                                 continue;
                             } else {
                                 simplex[0] = vReflect_Distribution;
                                 std::cout << "Reflection because Expansion is not better than reflection" << std::endl;
+                                lastActionWasShrink = false;
                                 continue;
                             }
 
                         } else { // vExpansion does not satisfy constraint, just use reflection
                             simplex[0] = vReflect_Distribution;
                             std::cout << "Reflection because Expansion does not satisfy constraint" << std::endl;
+                            lastActionWasShrink = false;
                             continue;
                         }
                     } else { // reflection point is not better than second worst, use contraction
@@ -268,12 +306,13 @@ namespace NelderMeadSearch {
                                 minimizationNorm(vReflect_Distribution.P, goal_P)) {
                                 simplex[0] = vContraction_Distribution;
                                 std::cout << "Contraction outside" << std::endl;
+                                lastActionWasShrink = false;
                                 continue;
                             } else {
                                 // shrink
-                                shrinkAllPoints(DELTA, simplex);
+                                shrinkAllPoints(DELTA, simplex, lastActionWasShrink, numberOfShrinks);
                                 std::cout << "Shrink" << std::endl;
-                                break;
+                                continue;
                             }
                         } else { // reflection is worse or equal than worst
                             vContraction =
@@ -285,12 +324,13 @@ namespace NelderMeadSearch {
                                 minimizationNorm(vLargest_Distribution.P, goal_P)) {
                                 simplex[0] = vContraction_Distribution;
                                 std::cout << "Contraction inside" << std::endl;
+                                lastActionWasShrink = false;
                                 continue;
                             } else {
                                 // shrink
-                                shrinkAllPoints(DELTA, simplex);
+                                shrinkAllPoints(DELTA, simplex, lastActionWasShrink, numberOfShrinks);
                                 std::cout << "Shrink" << std::endl;
-                                break;
+                                continue;
                             }
                         }
                     }
@@ -301,12 +341,13 @@ namespace NelderMeadSearch {
                         minimizationNorm(vLargest_Distribution.P, goal_P)) {
                         simplex[0] = vContraction_Distribution;
                         std::cout << "Contraction inside because reflection does not satisfy constraints" << std::endl;
+                        lastActionWasShrink = false;
                         continue;
                     } else {
                         // shrink
-                        shrinkAllPoints(DELTA, simplex);
+                        shrinkAllPoints(DELTA, simplex, lastActionWasShrink, numberOfShrinks);
                         std::cout << "Shrink" << std::endl;
-                        break;
+                        continue;
                     }
                 }
 
