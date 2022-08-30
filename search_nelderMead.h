@@ -317,8 +317,10 @@ namespace NelderMeadSearch {
 
                 Distribution vReflect_Distribution = performReflection(simplex, vReflect, weights, distr(gen), vCentroid, n, M, ALPHA);
 
-                if (!vReflect_Distribution.satisfiesConstraints()) {
+                int numOfReflectionTries = 0;
+                while (!vReflect_Distribution.satisfiesConstraints() && numOfReflectionTries < M) {
                     vReflect_Distribution = performReflection(simplex, vReflect, weights, distr(gen), vCentroid, n, M, ALPHA);
+                    numOfReflectionTries++;
                 }
 
                 if (vReflect_Distribution.satisfiesConstraints()) {
