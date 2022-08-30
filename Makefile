@@ -6,5 +6,5 @@ run: main.cpp
 	./code
 
 test: test.cpp
-	g++ test.cpp -o test
+	g++ test.cpp -lgmp -o test
 	./test
