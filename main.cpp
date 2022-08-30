@@ -81,16 +81,17 @@ int main(int argc, char* argv[]) {
                             Eigen::VectorXd::Constant(16, 1.0/4.0),
                             Eigen::VectorXd::Constant(16, 1.0/4.0));
 
-    const Distribution completelyRandom(3,
-                                        Distribution::generate_random_q(3),
-                                        Distribution::generate_random_q(3),
-                                        Distribution::generate_random_q(3),
-                                        Distribution::generate_random_xi(3),
-                                        Distribution::generate_random_xi(3),
-                                        Distribution::generate_random_xi(3));
+    const int myM = 2;
+    const Distribution completelyRandom(myM,
+                                        Distribution::generate_random_q(myM),
+                                        Distribution::generate_random_q(myM),
+                                        Distribution::generate_random_q(myM),
+                                        Distribution::generate_random_xi(myM),
+                                        Distribution::generate_random_xi(myM),
+                                        Distribution::generate_random_xi(myM));
     if (neadMelder){
         NelderMeadSearch::NelderMeadSearch search;
-        search.getSolution(completelyRandom, elegantJointDistribution());
+        search.getBestSolution(completelyRandom, elegantJointDistribution(), 20);
     }
 
     if (iterative){
