@@ -191,7 +191,44 @@ namespace NelderMeadSearch {
             assert (simplex.size() == n + 1);
         }
 
+        Distribution performReflection(std::vector<Distribution> &simplex, Eigen::VectorXd vReflect, int weights[], int rnd, Eigen::VectorXd vCentroid, int n, int M, double ALPHA) {
+            bool constraintsOk = Distribution(M, vReflect).satisfiesConstraints();
+            int counter = 1;
+            while (!constraintsOk) {
+                Eigen::VectorXd temp = vCentroid + ALPHA * (vCentroid - simplex[counter].getAllCoordinates());
+                Distribution tempDis = Distribution(M, temp);
+                constraintsOk = tempDis.satisfiesConstraints();
+                if (constraintsOk && rnd < weights[counter]) {
+                    vReflect = temp;
+                }
+                if (counter == n) {
+                    std::cout << "terminate" << std::endl;
+                    constraintsOk = true;
+                }
+                rnd -= weights[counter];
+                counter++;
+            }
+
+            return Distribution(M, vReflect);
+        }
+
     public:
+        Distribution getBestSolution(Distribution start, Eigen::VectorXd goal_P, int numberOfRestarts) {
+            Distribution best = getSolution(start, goal_P);
+
+            for (int i = 0; i < numberOfRestarts; i++) {
+                Distribution current = getSolution(start, goal_P);
+                if (minimizationNorm(current.P, goal_P) < minimizationNorm(best.P, goal_P)) {
+                    best = current;
+                }
+            }
+
+            std::cout << "error for best: " << minimizationNorm(best.P, goal_P) << std::endl;
+
+            return best;
+        }
+
+
         Distribution getSolution(Distribution distribution, Eigen::VectorXd goal_P) {
             distribution.checkConstraints();
 
@@ -240,7 +277,7 @@ namespace NelderMeadSearch {
             int weights[n + 1];
             int sum = 0;
             for (int i = 0; i < n + 1; i++) {
-                int weight = n - i;
+                int weight = 2 * (n - i);
                 weights[i] = weight;
                 sum += weight;
             }
@@ -278,26 +315,13 @@ namespace NelderMeadSearch {
                 // reflect largest point on centroid
                 vReflect = vCentroid + ALPHA * (vCentroid - simplex[0].getAllCoordinates());
 
-                int rnd = distr(gen);
+                Distribution vReflect_Distribution = performReflection(simplex, vReflect, weights, distr(gen), vCentroid, n, M, ALPHA);
 
-                bool constraintsOk = Distribution(M, vReflect).satisfiesConstraints();
-                int counter = 1;
-                while (!constraintsOk) {
-                    Eigen::VectorXd temp = vCentroid + ALPHA * (vCentroid - simplex[counter].getAllCoordinates());
-                    Distribution tempDis = Distribution(M, temp);
-                    constraintsOk = tempDis.satisfiesConstraints();
-                    if (constraintsOk && rnd < weights[counter]) {
-                        vReflect = temp;
-                    }
-                    if (counter == n) {
-                        std::cout << "terminate" << std::endl;
-                        constraintsOk = true;
-                    }
-                    rnd -= weights[counter];
-                    counter++;
+                int numOfReflectionTries = 0;
+                while (!vReflect_Distribution.satisfiesConstraints() && numOfReflectionTries < M) {
+                    vReflect_Distribution = performReflection(simplex, vReflect, weights, distr(gen), vCentroid, n, M, ALPHA);
+                    numOfReflectionTries++;
                 }
-
-                Distribution vReflect_Distribution = Distribution(M, vReflect);
 
                 if (vReflect_Distribution.satisfiesConstraints()) {
                     // if vReflect is smaller than the second largest point and larger than the smallest, replace largest by vReflect

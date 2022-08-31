@@ -90,7 +90,7 @@ int main(int argc, char* argv[]) {
                                         Distribution::generate_random_xi(10));
     if (neadMelder){
         NelderMeadSearch::NelderMeadSearch search;
-        search.getSolution(completelyRandom, elegantJointDistribution());
+        search.getBestSolution(completelyRandom, elegantJointDistribution(), 20);
     }
 
     if (iterative){
