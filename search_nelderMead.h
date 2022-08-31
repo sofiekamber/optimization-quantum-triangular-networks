@@ -213,11 +213,11 @@ namespace NelderMeadSearch {
         }
 
     public:
-        Distribution getBestSolution(Distribution start, Eigen::VectorXd goal_P, int numberOfRestarts) {
-            Distribution best = getSolution(start, goal_P);
+        Distribution getBestSolution(Distribution start, Eigen::VectorXd goal_P, int numberOfRestarts, bool rand = true, std::vector<Eigen::VectorXd> starter = {}) {
+            Distribution best = getSolution(start, goal_P, rand, starter);
 
             for (int i = 0; i < numberOfRestarts; i++) {
-                Distribution current = getSolution(start, goal_P);
+                Distribution current = getSolution(start, goal_P, rand, starter);
                 if (minimizationNorm(current.P, goal_P) < minimizationNorm(best.P, goal_P)) {
                     best = current;
                 }
@@ -229,7 +229,7 @@ namespace NelderMeadSearch {
         }
 
 
-        Distribution getSolution(Distribution distribution, Eigen::VectorXd goal_P) {
+        Distribution getSolution(Distribution distribution, Eigen::VectorXd goal_P, bool rand = true, std::vector<Eigen::VectorXd> starter = {}) {
             distribution.checkConstraints();
 
             int M = distribution.M;
@@ -257,7 +257,17 @@ namespace NelderMeadSearch {
             double const DELTA = 0.5; // used for shrinkage
 
             /* create the initial simplex */
-            std::vector<Distribution> simplex = initializeRandomSimplex(point, n, M);
+            std::vector<Distribution> simplex;
+            if (rand){
+                simplex = initializeRandomSimplex(point, n, M);
+            }
+            else{
+                assert(starter.size() == n + 1 && "Not enough points for simplex initialization!");
+                for (Eigen::VectorXd comp : starter){
+                    simplex.push_back(Distribution(M, comp));
+                }
+            }
+
 //            std::vector<Distribution> simplex = initializeStructuredSimplex(point, n, M);
 
             std::cout << "simplex initialized " << simplex.size() << "/" << n << std::endl;

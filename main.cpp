@@ -46,14 +46,51 @@ Eigen::VectorXd elegantJointDistribution() {
     return p;
 }
 
+Distribution generateRandom(int M){
+        return Distribution(M,
+                            Distribution::generate_random_q(M),
+                            Distribution::generate_random_q(M),
+                            Distribution::generate_random_q(M),
+                            Distribution::generate_random_xi(M),
+                            Distribution::generate_random_xi(M),
+                            Distribution::generate_random_xi(M));
+}
+
+
+
+/**
+ * @brief Combines GaussNewton for the selection of initial points for the simplex (local minimas)
+ *        Uses these points as starting points fro simplex whcih should find their optimum
+ * 
+ * @param M discretization constant
+ * @param goal desired distribution
+ */
+void gaussNelder(int M, Eigen::VectorXd goal){
+    const int n = 12 * M * M + 3 * M;
+
+    // generating starting points using Gauss Newton
+    std::vector<Eigen::VectorXd> startingPoints;
+    for (int i = 0; i < n + 1; i++){
+        Eigen::VectorXd optimum = Iterative::solve(generateRandom(M), goal, 1U);
+        startingPoints.push_back(optimum);
+    }
+
+    // applying MeadNelder on them
+    NelderMeadSearch::NelderMeadSearch search;
+    search.getBestSolution(generateRandom(M), elegantJointDistribution(), 20, false, startingPoints);
+        
+}
+
 int main(int argc, char* argv[]) {
     
     bool neadMelder = true, iterative = true, test = false;
-    if (argc > 2){
+    int M = 2; //default
+
+    if (argc > 3){
         std::cout << "invalid number of arguments entered" << std::endl;
         return 0;
     }
-    if (argc == 2){
+    if (argc >= 2){
         if (std::string(argv[1]) == "--neadmelder"){
             iterative = false;
         }
@@ -71,7 +108,20 @@ int main(int argc, char* argv[]) {
             return 0;
         }
     }
+    if (argc == 3){
+        M = stoi(std::string(argv[2]));
+    }
+    std::cout << "Parameter M: " << M << std::endl;
+
     srand((unsigned int) time(0));
+
+
+    // just a random distribution
+    Eigen::VectorXd random = Eigen::VectorXd::Random(64);
+    for (int i = 0; i < 64; i++){
+        random(i) = std::abs(random(i));
+    }
+    random /= random.sum();
 
     const Distribution something(2,
                             Distribution::generate_random_q(2),
@@ -81,27 +131,22 @@ int main(int argc, char* argv[]) {
                             Eigen::VectorXd::Constant(16, 1.0/4.0),
                             Eigen::VectorXd::Constant(16, 1.0/4.0));
 
-    const Distribution completelyRandom(10,
-                                        Distribution::generate_random_q(10),
-                                        Distribution::generate_random_q(10),
-                                        Distribution::generate_random_q(10),
-                                        Distribution::generate_random_xi(10),
-                                        Distribution::generate_random_xi(10),
-                                        Distribution::generate_random_xi(10));
+
     if (neadMelder){
         NelderMeadSearch::NelderMeadSearch search;
-        search.getBestSolution(completelyRandom, elegantJointDistribution(), 20);
+        search.getBestSolution(generateRandom(M), elegantJointDistribution(), 20);
     }
 
+
     if (iterative){
-        Eigen::VectorXd sol = Iterative::solve(something, elegantJointDistribution(), 1U);       
+        Eigen::VectorXd sol = Iterative::solve(generateRandom(M), elegantJointDistribution(), 3U);       
     //    std::cout << "What we got as an approximation: " << std::endl;
     //    std::cout << sol << std::endl;
     }
 
-
+    // runs both of them combined
     if (test){
-        // TODO
+        gaussNelder(M, elegantJointDistribution());
     }
 
     return 0;

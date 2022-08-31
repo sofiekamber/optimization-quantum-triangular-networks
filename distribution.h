@@ -19,7 +19,7 @@ public:
      * @param M size of the Distribution = M
      * @return Eigen::VectorXd 
      */
-    static Eigen::VectorXd generate_random_q(const int M){
+    static Eigen::VectorXd generate_random_q(const int M) {
         Eigen::VectorXd q = Eigen::VectorXd::Random(M);
         auto abs_lambda = [](double x)->double{
             return std::abs(x);
@@ -28,7 +28,7 @@ public:
         return q / q.sum();
     }
 
-    static Eigen::VectorXd generate_random_xi(const int M){
+    static Eigen::VectorXd generate_random_xi(const int M) {
         Eigen::VectorXd xi = Eigen::VectorXd::Random(4*M*M);
         for (int i = 0; i < M * M; i++){
             double sum = 0;
@@ -42,7 +42,7 @@ public:
         return xi;
     }
 
-    bool satisfiesConstraints(const double epsilon = 1e-7) {
+    bool satisfiesConstraints(const double epsilon = 1e-6) const{
         bool qConstraint = q_a.sum() < 1 + epsilon && q_a.sum() > 1.0 - epsilon &&
                 q_b.sum() < 1 + epsilon && q_b.sum() > 1.0 - epsilon &&
                 q_c.sum() < 1 + epsilon && q_c.sum() > 1.0 - epsilon;
@@ -75,7 +75,7 @@ public:
      * 
      * If vector is not normalized an assert is triggered
      */
-    void checkConstraints(const double epsilon = 1e-7) const{
+    void checkConstraints(const double epsilon = 1e-6) const{
         assert(q_a.sum() < 1 + epsilon && q_a.sum() > 1.0 - epsilon && "q_a is not normalized!");
         assert(q_b.sum() < 1 + epsilon && q_b.sum() > 1.0 - epsilon && "q_b is not normalized!");
         assert(q_c.sum() < 1 + epsilon && q_c.sum() > 1.0 - epsilon && "q_c is not normalized!");
@@ -129,6 +129,19 @@ public:
 
     }
 
+
+    /**
+     * @brief Accessing desired index in the generic xi_* vector xi_(v | fst, snd)
+     * 
+     * @param v 
+     * @param fst 
+     * @param snd 
+     * @return index in the vector xi
+     */
+    int xi(int v, int fst, int snd) const{
+        return v * M * M + fst * M + snd;
+    }
+
     /**
      * @brief return value of xi_a(a | beta, gamma) \in R^{4M^2}
      *
@@ -137,7 +150,7 @@ public:
      * @param gamma
      * @return double
      */
-    double xi_a(int a, int beta, int gamma)
+    double xi_a(int a, int beta, int gamma) const
     {
         return xi_A(a * M * M + beta * M + gamma);
     }
@@ -149,7 +162,7 @@ public:
      * @param gamma
      * @return double
      */
-    double xi_b(int b, int alpha, int gamma)
+    double xi_b(int b, int alpha, int gamma) const
     {
         return xi_B(b * M * M + alpha * M + gamma);
     }
@@ -161,12 +174,12 @@ public:
      * @param beta
      * @return double
      */
-    double xi_c(int c, int alpha, int beta)
+    double xi_c(int c, int alpha, int beta) const
     {
         return xi_C(c * M * M + alpha * M + beta);
     }
 
-    Eigen::VectorXd getAllCoordinates() {
+    Eigen::VectorXd getAllCoordinates() const{
         Eigen::VectorXd result(12 * M * M + 3 * M);
         result << q_a, q_b, q_c, xi_A, xi_B, xi_C;
         return result;
@@ -182,7 +195,7 @@ public:
      */
 
     // put in constructor
-    double eval(int a, int b, int c)
+    double eval(int a, int b, int c) const
     {
         assert(a >= 0 && a < 4 && "Invalid parameter a!");
         assert(b >= 0 && b < 4 && "Invalid parameter b!");
@@ -196,7 +209,7 @@ public:
      *
      * @return DG as a SparseMatrix
      */
-    Eigen::SparseMatrix<double> computeJacobian()
+    Eigen::SparseMatrix<double> computeJacobian() const
     {
         // order of computing derivative: q_a, q_b, q_c, xi_a, xi_b, xi_c
         const int n = M * M * 12 + 3 * M;
@@ -268,7 +281,7 @@ public:
                             {
                                 value += q_a(alpha) * q_b(beta) * q_c(gamma) * xi_b(b, alpha, gamma) * xi_c(c, alpha, beta);
                             }
-                            triplets.push_back(Eigen::Triplet<double>(val(a, b, c), 3 * M + xi_a(a, beta, gamma), value));
+                            triplets.push_back(Eigen::Triplet<double>(val(a, b, c), 3 * M + xi(a, beta, gamma), value));
                         }
                     }
                     // computing xi_b derivatives
@@ -281,7 +294,7 @@ public:
                             {
                                 value += q_a(alpha) * q_b(beta) * q_c(gamma) * xi_a(a, beta, gamma) * xi_c(c, alpha, beta);
                             }
-                            triplets.push_back(Eigen::Triplet<double>(val(a, b, c), 3 * M + 4 * M * M + xi_b(b, alpha, gamma), value));
+                            triplets.push_back(Eigen::Triplet<double>(val(a, b, c), 3 * M + 4 * M * M + xi(b, alpha, gamma), value));
                         }
                     }
                     // computing xi_c derivatives
@@ -294,7 +307,7 @@ public:
                             {
                                 value += q_a(alpha) * q_b(beta) * q_c(gamma) * xi_b(b, alpha, gamma) * xi_a(a, beta, gamma);
                             }
-                            triplets.push_back(Eigen::Triplet<double>(val(a, b, c), 3 * M + 8 * M * M + xi_c(c, alpha, beta), value));
+                            triplets.push_back(Eigen::Triplet<double>(val(a, b, c), 3 * M + 8 * M * M + xi(c, alpha, beta), value));
                         }
                     }
                 }
@@ -320,7 +333,7 @@ private:
                     for (int alpha = 0; alpha < M; alpha++){
                         for (int beta = 0; beta < M; beta++){
                             for (int gamma = 0; gamma < M; gamma++){
-                                P[a * 16 + b * 4 + c] += q_a(alpha) * q_b(beta) * q_c(gamma) * xi_a(a, beta, gamma) * xi_b(b, alpha, gamma) * xi_c(c, beta, gamma);
+                                P[16 * a + 4 * b + c] += q_a(alpha) * q_b(beta) * q_c(gamma) * xi_a(a, beta, gamma) * xi_b(b, alpha, gamma) * xi_c(c, beta, gamma);
                             }
                         }
                     }

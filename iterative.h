@@ -16,13 +16,13 @@
 #include "distribution.h"
 
 // choose the fastest available solver (float)
-//#ifdef CGAL_USE_GMP
-//#include <CGAL/Gmpz.h>
-//typedef CGAL::Gmpz ET;
-//#else
+#ifndef CGAL_USE_GMP
+#include <CGAL/Gmpz.h>
+typedef CGAL::Gmpz ET;
+#else
 #include <CGAL/MP_Float.h>
 typedef CGAL::MP_Float ET;
-//#endif
+#endif
 
 
 // program and solution types
@@ -71,15 +71,12 @@ namespace Iterative{
      */
     Eigen::VectorXd quadratic_solver(
         int M, 
-        const Eigen::MatrixXd& LP, 
-        const Eigen::SparseMatrix<double>& J,
-        const Eigen::VectorXd& F_yk, 
-        const Eigen::VectorXd& y_k,
-        double epsilon = 1e-6)
+        const Eigen::VectorXd& goal, 
+        double epsilon = 1e-7)
     {
         const int n = 12 * M * M + 3 * M;
         //total number of variables = n
-        assert(F_yk.size() == 64 && y_k.size() == n && "Dimensions of inputs to quadratic solver are wrong!");
+        assert(goal.size() == n && "Dimensions of inputs to quadratic solver are wrong!");
         Program lp (CGAL::SMALLER, false, -1.0, false, 1.0);
 
         /*
@@ -88,23 +85,16 @@ namespace Iterative{
         // initialize the x^t * J^t * J * x minimization objective = L^2 norm
         // note: we define double the value of matrix here (needed for CGAL)
         for (int i = 0; i < n; i++){
-            for (int j = 0; j <= i; j++){
-                lp.set_d(i, j, 2 * LP(i, j));
-            }
+            lp.set_d(i, i, 2.0);
         }
 
-        // initialize: - 2 b^t * J * x
-        Eigen::SparseMatrix<double> JT = J.transpose();
-        Eigen::VectorXd c = JT * F_yk;
+        // initialize: - 2 b^t * x
         for (int i = 0; i < n; i++){
-            lp.set_c(i, -2 * c(i));
+            lp.set_c(i, -2 * goal(i));
         }
 
         // initialize b^t * b
-        lp.set_c0(F_yk.squaredNorm());
-
-        assert(abs( ((LP * y_k).dot(y_k) - 2 * c.dot(y_k) + F_yk.squaredNorm()) - (J * y_k - F_yk).squaredNorm() ) < 1e-7 
-                    && "LP was incorrectly initialized");
+        lp.set_c0(goal.squaredNorm());
 
         // a helper function to access the values of xi_? easier
         auto xi = [&M](int v, int fst, int snd)->int{
@@ -126,9 +116,9 @@ namespace Iterative{
         offset += 3;
 
         for (int j = 0; j < M; j++){
-            lp.set_a(j, offset + 0, 1.0);
-            lp.set_a(M + j, offset + 1, 1.0);
-            lp.set_a(2*M + j, offset + 2, 1.0);
+            lp.set_a(j, offset + 0, -1.0);
+            lp.set_a(M + j, offset + 1, -1.0);
+            lp.set_a(2*M + j, offset + 2, -1.0);
         }
         offset += 3;
 
@@ -167,39 +157,47 @@ namespace Iterative{
         assert (offset == (6 + 3*M*M + 3*M*M) && "Number of constraints is wrong!");
 
         // less or equall epsilon norm in each step for normalization
-        for (int j = 0; j < offset; j++){
-            lp.set_b(j, epsilon);
+        for (int j = 0; j < 3; j++){
+            lp.set_b(j, 1 + epsilon);
+        }
+        for (int j = 3; j < 6; j++){
+            lp.set_b(j, epsilon - 1);
+        }
+        for (int j = 6; j < 6 + 3 * M * M; j++){
+            lp.set_b(j, 1 + epsilon);
+        }
+        for (int j = 6 + 3 * M * M; j < 6 + 6 * M * M; j++){
+            lp.set_b(j, epsilon - 1);
         }
 
-        // setting the values of upper boundary as y_k      
+        // setting the values of upper boundary as 1.0     
         for (int i = 0; i < n; i++){
-            lp.set_u(i, true, y_k(i));
+            lp.set_u(i, true, 1.0);
         }
 
-        // setting the value of the lower boundary as y_k - 1.0
+        // setting the value of the lower boundary as 0
         for (int i = 0; i < n; i++){
-            lp.set_l(i, true, y_k(i) - 1.0);
+            lp.set_l(i, true, 0);
         }
 
-        Solution sol = CGAL::solve_quadratic_program(lp, ET());
+        Solution sol = CGAL::solve_nonnegative_quadratic_program(lp, ET());
         // assert(sol.solves_quadratic_program(lp) && "Solution doesn't work, might be infeasible?");
 
-        std::cout << "Observed objective value is: " << sol.objective_value() << std::endl;
+        // std::cout << sol << std::endl;
 
         Eigen::VectorXd solution(n);
 
         // CGAL::print_quadratic_program(std::cout, lp, "first_lp");
 
         int j = 0;
-        for (auto i = sol.variable_numerators_begin(); i != sol.variable_numerators_end(); i++){
+        for (auto i = sol.variable_values_begin(); i != sol.variable_values_end(); i++){
             solution[j] = CGAL::to_double(*i);
             j++;
         }
-        
         return solution;
     }
 
-    Distribution gaussNewtonStep(Distribution& current, Eigen::VectorXd goal){
+    Distribution gaussNewtonStep(Distribution& current, Eigen::VectorXd goal, bool& done){
         
         int M = current.M;
         int n = 12 * M * M + 3 * M;
@@ -210,31 +208,46 @@ namespace Iterative{
         y_k.segment(M, M) = current.q_b;
         y_k.segment(2*M, M) = current.q_c;
 
-        //initialize the current  y_k in the iteration with xi_a, xi_b, xi_c
+        // initialize the current  y_k in the iteration with xi_a, xi_b, xi_c
         y_k.segment(3*M, 4*M*M) = current.xi_A;
         y_k.segment(3*M + 4*M*M, 4*M*M) = current.xi_B;
         y_k.segment(3*M + 8*M*M, 4*M*M) = current.xi_C;
 
-        //evaluate F(y_k) with argmin ||F(x)||_2^2 =  argmin ||G(.) - goal||_2^2
+        // evaluate F(y_k) with argmin ||F(x)||_2^2 =  argmin ||G(.) - goal||_2^2
         Eigen::VectorXd F_yk = current.P - goal;
 
-        //Gauss_newton LSE without damping, since for simplex there is no y_k, we use || . ||_2 instead
+        // Gauss_newton LSE without damping, since for simplex there is no y_k, we use || . ||_2 instead
         const Eigen::SparseMatrix<double>& J = current.computeJacobian();
+        const Eigen::SparseMatrix<double>& JT = J.transpose();
 
-        //Constrained linear minimization problem with some exact constraints
-        const Eigen::MatrixXd& LP = LPmatrix(M, J);
+        // Constrained linear minimization problem with some exact constraints
+        // solved via sparse linear least squares
+
+        Eigen::MatrixXd AtA_sparse = (JT * J).toDense();
+
+        //std::cout << AtA_sparse << std::endl;
+        
+        Eigen::VectorXd F_yk_ext = - JT.toDense() * F_yk;
+
+        Eigen::VectorXd step = AtA_sparse.fullPivLu().solve(F_yk_ext);
+
+        if (std::isnan(step.norm()) || step.norm() < 1e-10 || step.norm() > 1e15){
+            std::cout << "Reached a local extremum!" << std::endl;
+            done = true;
+            return current;
+        }
+
+        Eigen::VectorXd next_p =  y_k + step;
 
         //Solve using Simplex, since all constraints are linear
-        Eigen::VectorXd s = quadratic_solver(M, LP, J, F_yk, y_k);
-        Eigen::VectorXd next_p =  y_k - s;
+        Eigen::VectorXd constrained = quadratic_solver(M, next_p);
 
         //initialize a new distribution class
-        Distribution next(M, next_p);
+        Distribution next(M, constrained);
 
         //check if everything went ok
-        normalized(next.P);
 
-        std::cout << (next.P - current.P).norm() << std::endl;
+        normalized(next.P);
 
         return next;
     }
@@ -248,9 +261,10 @@ namespace Iterative{
      * @param rtol relative tolerance default = 1.0e-6
      * @return Eigen::VectorXd 
      */
-    Eigen::VectorXd solve(const Distribution& initial, const Eigen::VectorXd& goal, int steps = 2, double atol = -1.0e-8){
+    Eigen::VectorXd solve(const Distribution& initial, const Eigen::VectorXd& goal, int steps = 2, double atol = 1.0e-8){
         Eigen::VectorXd F_next = initial.P;
         Eigen::VectorXd F_prev = initial.P;
+        bool done = false;
         std::shared_ptr<Distribution> next = std::make_shared<Distribution>(initial);
         std::cout << "--------------------------------------" << std::endl;
         std::cout << "Gauss-Newton local minima search: " << std::endl;
@@ -258,15 +272,16 @@ namespace Iterative{
         int counter = 0;
         do{
             counter++;
-            next = std::make_shared<Distribution>(gaussNewtonStep(*next, goal));
+            next = std::make_shared<Distribution>(gaussNewtonStep(*next, goal, done));
             F_prev = F_next;
             F_next = next->P;
             std::cout << "Step " << counter << " error: " << (F_next - goal).norm() << "; Step size: " << (F_next - F_prev).norm() << std::endl;
-        }while(((F_next - F_prev).norm() > atol) && steps > counter);
+        }while(((F_next - F_prev).norm() > atol) && steps > counter && !done);
 
         std::cout << "--------------------------------------" << std::endl;
-        return F_next;
+        return next->getAllCoordinates();
     }
+
 }
 
 #endif

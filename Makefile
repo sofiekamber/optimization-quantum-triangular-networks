@@ -1,4 +1,4 @@
-main: main.cpp
+default: main.cpp
 	g++ main.cpp -lgmp -o code
 
 run: main.cpp
