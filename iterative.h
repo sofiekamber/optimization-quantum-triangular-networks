@@ -16,8 +16,13 @@
 #include "distribution.h"
 
 // choose the fastest available solver (float)
+//#ifdef CGAL_USE_GMP
+//#include <CGAL/Gmpz.h>
+//typedef CGAL::Gmpz ET;
+//#else
 #include <CGAL/MP_Float.h>
 typedef CGAL::MP_Float ET;
+//#endif
 
 
 // program and solution types
@@ -69,20 +74,16 @@ namespace Iterative{
         const Eigen::MatrixXd& LP, 
         const Eigen::SparseMatrix<double>& J,
         const Eigen::VectorXd& F_yk, 
-        const Eigen::VectorXd& y_k)
+        const Eigen::VectorXd& y_k,
+        double epsilon = 1e-6)
     {
         const int n = 12 * M * M + 3 * M;
         //total number of variables = n
         assert(F_yk.size() == 64 && y_k.size() == n && "Dimensions of inputs to quadratic solver are wrong!");
-        Program lp (CGAL::EQUAL, false, -1.0, false, 1.0);
-
-        // equality of 0 norm in each step for normalization
-        for (int j = 0; j < n; j++){
-            lp.set_b(j, 0);
-        }
+        Program lp (CGAL::SMALLER, false, -1.0, false, 1.0);
 
         /*
-        IDEA: improve speed by reducing double precision
+        IDEA: improve speed by rewriting the whole thing with cgal matrices -> use a rational approximation for double values
         */
         // initialize the x^t * J^t * J * x minimization objective = L^2 norm
         // note: we define double the value of matrix here (needed for CGAL)
@@ -113,8 +114,9 @@ namespace Iterative{
         // !NOTE! In CGAL first number is the column number <=> variable number [veery stupid idea]
         // Thus first value is variable, second is constraint (when using set_a)
 
-        int offset = 0;
+        int offset = 0; // constraints counter
         int var_offset = 0;
+
         // now set the normalization constraints for q_a, q_b, q_c
         for (int j = 0; j < M; j++){
             lp.set_a(j, offset + 0, 1.0);
@@ -122,8 +124,17 @@ namespace Iterative{
             lp.set_a(2*M + j, offset + 2, 1.0);
         }
         offset += 3;
+
+        for (int j = 0; j < M; j++){
+            lp.set_a(j, offset + 0, 1.0);
+            lp.set_a(M + j, offset + 1, 1.0);
+            lp.set_a(2*M + j, offset + 2, 1.0);
+        }
+        offset += 3;
+
         var_offset += 3 * M;
 
+        // we allow tolerance within epsilon for our step: -epsilon < step < epsilon
         // now set the normalization constraints for xi_a, xi_b, xi_c (three in total)
         for (int l = 0; l < 3; l++){
             for (int i = 0; i < M; i++){
@@ -136,6 +147,28 @@ namespace Iterative{
             }
             offset += M*M;
             var_offset += 4 * M * M;
+        }
+
+        var_offset = 3 * M;
+
+        for (int l = 0; l < 3; l++){
+            for (int i = 0; i < M; i++){
+                for (int j = 0; j < M ; j++){
+                    lp.set_a(var_offset + xi(0, i, j), offset + i * M + j, -1.0);
+                    lp.set_a(var_offset + xi(1, i, j), offset + i * M + j, -1.0);
+                    lp.set_a(var_offset + xi(2, i, j), offset + i * M + j, -1.0);
+                    lp.set_a(var_offset + xi(3, i, j), offset + i * M + j, -1.0);
+                }
+            }
+            offset += M*M;
+            var_offset += 4 * M * M;
+        }
+
+        assert (offset == (6 + 3*M*M + 3*M*M) && "Number of constraints is wrong!");
+
+        // less or equall epsilon norm in each step for normalization
+        for (int j = 0; j < offset; j++){
+            lp.set_b(j, epsilon);
         }
 
         // setting the values of upper boundary as y_k      
