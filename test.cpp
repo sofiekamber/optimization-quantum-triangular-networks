@@ -46,7 +46,7 @@ Distribution getRandomUniform(int M) {
 
 void testJabobian() {
     int M = 10;
-    Distribution x_0_Distribution = getRandomUniform(M);
+    Distribution x_0_Distribution = getRandomDistribution(M);
     Distribution x_Distribution = getRandomDistribution(M);
 
     const int MAX_ITERATION = 50;
@@ -56,8 +56,6 @@ void testJabobian() {
     double TOL = 1e-08;
 
     Eigen::MatrixXd J = x_0_Distribution.computeJacobian().toDense();
-
-    std::cout << J << std::endl;
 
     for (int i = 0; i < MAX_ITERATION; i++) {
         Eigen::VectorXd error = x_Distribution.P - (x_0_Distribution.P + J * (x - x_0));

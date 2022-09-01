@@ -280,7 +280,7 @@ namespace Iterative{
      * @param rtol relative tolerance default = 1.0e-6
      * @return Eigen::VectorXd 
      */
-    Eigen::VectorXd solve(const Distribution& initial, const Eigen::VectorXd& goal, int steps = 2, double atol = 1.0e-8){
+    Eigen::VectorXd solve(const Distribution& initial, const Eigen::VectorXd& goal, int steps = 2, double atol = 1.0e-5){
         Eigen::VectorXd F_next = initial.P;
         Eigen::VectorXd F_prev = initial.P;
         bool done = false;
