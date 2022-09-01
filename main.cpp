@@ -83,7 +83,7 @@ void gaussNelder(int M, Eigen::VectorXd goal){
 
 int main(int argc, char* argv[]) {
     
-    bool neadMelder = true, iterative = true, test = false;
+    bool neadMelder = true, iterative = true, test = false, local = false;
     int M = 2; //default
 
     if (argc > 3){
@@ -102,8 +102,13 @@ int main(int argc, char* argv[]) {
             neadMelder = false;
             iterative = false;
         }
+        else if(std::string(argv[1]) == "--local"){
+            local = true;
+            neadMelder = false;
+            iterative = false;
+        }
         else{
-            std::cout << "Invalid flag, use {--nelderMead, --gauss, --test} or default" << std::endl;
+            std::cout << "Invalid flag, use {--nelderMead, --gauss, --test, --local} or default" << std::endl;
             std::cout << "Received flag: "<< argv[1] << std::endl;
             return 0;
         }
@@ -132,7 +137,7 @@ int main(int argc, char* argv[]) {
 
     if (neadMelder){
         NelderMeadSearch::NelderMeadSearch search;
-        search.getBestSolution(generateRandom(M), elegantJointDistribution(), 20);
+        Distribution best = search.getBestSolution(generateRandom(M), elegantJointDistribution(), 20);
     }
 
 
@@ -146,6 +151,13 @@ int main(int argc, char* argv[]) {
     if (test){
         gaussNelder(M, elegantJointDistribution());
     }
+
+    if (local){
+        NelderMeadSearch::NelderMeadSearch search;
+        Distribution best = search.getBestSolution(generateRandom(M), elegantJointDistribution(), 20);
+        Eigen::VectorXd sol = Iterative::solve(best, elegantJointDistribution(), 10U);
+    }
+
 
     return 0;
 }

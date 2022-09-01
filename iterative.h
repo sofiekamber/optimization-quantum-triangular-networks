@@ -242,6 +242,7 @@ namespace Iterative{
         step = step / std::max(1.0, step.norm());
         Eigen::VectorXd next_p; 
         Eigen::VectorXd constrained;
+        bool improve = false;
         do{
             next_p = y_k + step;
 
@@ -252,6 +253,7 @@ namespace Iterative{
             Distribution maybe(M, constrained);
 
             if ((maybe.P - goal).norm() < (current.P - goal).norm()){
+                improve = true;
                 break;
             }
             
@@ -260,15 +262,18 @@ namespace Iterative{
             // make the step smaller
             step *= 0.5;
 
-        }while (step.norm() > 0.05);
+        }while (step.norm() > 0.01);
 
         //initialize a new distribution class
-        Distribution next(M, constrained);
+        if (improve){
+            Distribution next(M, constrained);
+            //check if everything went ok
+            normalized(next.P);
+            return next;
+        }
 
-        //check if everything went ok
-        normalized(next.P);
-
-        return next;
+        
+        return current;
     }
 
     /**
