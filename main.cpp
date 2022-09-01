@@ -91,7 +91,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
     if (argc >= 2){
-        if (std::string(argv[1]) == "--neadmelder"){
+        if (std::string(argv[1]) == "--nelderMead"){
             iterative = false;
         }
         else if (std::string(argv[1]) == "--gauss"){
@@ -103,7 +103,7 @@ int main(int argc, char* argv[]) {
             iterative = false;
         }
         else{
-            std::cout << "Invalid flag, use {--neadmelder, --gauss, --test} or default" << std::endl;
+            std::cout << "Invalid flag, use {--nelderMead, --gauss, --test} or default" << std::endl;
             std::cout << "Received flag: "<< argv[1] << std::endl;
             return 0;
         }
