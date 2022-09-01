@@ -71,7 +71,7 @@ void gaussNelder(int M, Eigen::VectorXd goal){
     // generating starting points using Gauss Newton
     std::vector<Eigen::VectorXd> startingPoints;
     for (int i = 0; i < n + 1; i++){
-        Eigen::VectorXd optimum = Iterative::solve(generateRandom(M), goal, 1U);
+        Eigen::VectorXd optimum = Iterative::solve(generateRandom(M), goal, 3U);
         startingPoints.push_back(optimum);
     }
 

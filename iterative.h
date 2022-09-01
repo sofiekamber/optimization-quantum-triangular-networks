@@ -224,12 +224,12 @@ namespace Iterative{
         // solved via sparse linear least squares
 
         Eigen::MatrixXd AtA_sparse = (JT * J).toDense();
-
-        //std::cout << AtA_sparse << std::endl;
         
         Eigen::VectorXd F_yk_ext = - JT.toDense() * F_yk;
 
         Eigen::VectorXd step = AtA_sparse.fullPivLu().solve(F_yk_ext);
+
+        // Verify that the step is useful
 
         if (std::isnan(step.norm()) || step.norm() < 1e-10 || step.norm() > 1e15){
             std::cout << "Reached a local extremum!" << std::endl;
@@ -237,16 +237,35 @@ namespace Iterative{
             return current;
         }
 
-        Eigen::VectorXd next_p =  y_k + step;
+        // We want the steps to be small enought to not walk away from simplex
 
-        //Solve using Simplex, since all constraints are linear
-        Eigen::VectorXd constrained = quadratic_solver(M, next_p);
+        step = step / std::max(1.0, step.norm());
+        Eigen::VectorXd next_p; 
+        Eigen::VectorXd constrained;
+        do{
+            next_p = y_k + step;
+
+            // project the point on a simplex using LP
+            constrained = quadratic_solver(M, next_p);
+
+            //check whether it is improving
+            Distribution maybe(M, constrained);
+
+            if ((maybe.P - goal).norm() < (current.P - goal).norm()){
+                break;
+            }
+            
+            std::cout << "=== attempted step " << step.norm() << " with error " << (maybe.P - goal).norm() << std::endl;
+
+            // make the step smaller
+            step *= 0.5;
+
+        }while (step.norm() > 1e-4);
 
         //initialize a new distribution class
         Distribution next(M, constrained);
 
         //check if everything went ok
-
         normalized(next.P);
 
         return next;
