@@ -229,37 +229,29 @@ namespace NelderMeadSearch {
         }
 
 
-        Distribution getSolution(Distribution distribution, Eigen::VectorXd goal_P, bool rand = true, std::vector<Eigen::VectorXd> starter = {}) {
+        Distribution getSolution(Distribution distribution, Eigen::VectorXd goal_P, bool useRandomStartingPoints = true, std::vector<Eigen::VectorXd> starter = {}) {
             distribution.checkConstraints();
 
+            /* declaration of variables */
+            const int MAX_ITERATION = 100000;
+            double TOLERANCE = 1e-7;
             int M = distribution.M;
             int n = 12 * M * M + 3 * M;
-            Eigen::VectorXd point(n);
-
-            //initialize the current point in the iteration with q_a, q_b, q_c
-            point.segment(0, M) = distribution.q_a;
-            point.segment(M, M) = distribution.q_b;
-            point.segment(2 * M, M) = distribution.q_c;
-
-            //initialize the current point in the iteration with xi_a, xi_b, xi_c
-            point.segment(3 * M, 4 * M * M) = distribution.xi_A;
-            point.segment(3 * M + 4 * M * M, 4 * M * M) = distribution.xi_B;
-            point.segment(3 * M + 8 * M * M, 4 * M * M) = distribution.xi_C;
-
-            Eigen::VectorXd vReflect(n); // coordinates of reflection point
-            Eigen::VectorXd vExpansion(n); // coordinates of expansion point
-            Eigen::VectorXd vContraction(n); // coordinates of contraction point
-            Eigen::VectorXd vCentroid(n); // coordinates of centroid
 
             double const ALPHA = 1.0; // used for reflection
             double const GAMMA = 1.5; // used for expansion
             double const BETA = 0.5; // used for contraction
             double const DELTA = 0.5; // used for shrinkage
 
+            Eigen::VectorXd vReflect(n); // coordinates of reflection point
+            Eigen::VectorXd vExpansion(n); // coordinates of expansion point
+            Eigen::VectorXd vContraction(n); // coordinates of contraction point
+            Eigen::VectorXd vCentroid(n); // coordinates of centroid
+
             /* create the initial simplex */
             std::vector<Distribution> simplex;
-            if (rand){
-                simplex = initializeRandomSimplex(point, n, M);
+            if (useRandomStartingPoints){
+                simplex = initializeRandomSimplex(distribution.getAllCoordinates(), n, M);
             }
             else{
                 assert(starter.size() == n + 1 && "Not enough points for simplex initialization!");
@@ -268,14 +260,9 @@ namespace NelderMeadSearch {
                 }
             }
 
-//            std::vector<Distribution> simplex = initializeStructuredSimplex(point, n, M);
-
             std::cout << "simplex initialized " << simplex.size() << "/" << n << std::endl;
 
-
-            const int MAX_ITERATION = 100000;
             double errorBefore = 0.0;
-            double tolerance = 1e-7;
             bool lastActionWasShrink = false;
             int numberOfShrinks = 0;
 
@@ -304,7 +291,7 @@ namespace NelderMeadSearch {
 
                 // stopping criteria: stop when error has been the same for 100 iterations or
                 if (iteration % 100 == 0 || (lastActionWasShrink && numberOfShrinks == 3)) {
-                    if (std::abs(errorBefore - error) < tolerance) {
+                    if (std::abs(errorBefore - error) < TOLERANCE) {
                         break;
                     }
                     errorBefore = error;
