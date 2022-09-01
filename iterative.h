@@ -260,7 +260,7 @@ namespace Iterative{
             // make the step smaller
             step *= 0.5;
 
-        }while (step.norm() > 1e-4);
+        }while (step.norm() > 0.05);
 
         //initialize a new distribution class
         Distribution next(M, constrained);
