@@ -298,14 +298,14 @@ public:
                         }
                     }
                     // computing xi_c derivatives
-                    for (int beta = 0; beta < M; beta++)
+                    for (int alpha = 0; alpha < M; alpha++)
                     {
-                        for (int alpha = 0; alpha < M; alpha++)
+                        for (int beta = 0; beta < M; beta++)
                         {
                             double value = 0;
                             for (int gamma = 0; gamma < M; gamma++)
                             {
-                                value += q_a(alpha) * q_b(beta) * q_c(gamma) * xi_b(b, alpha, gamma) * xi_a(a, beta, gamma);
+                                value += q_a(alpha) * q_b(beta) * q_c(gamma) * xi_a(a, beta, gamma) * xi_b(b, alpha, gamma) ;
                             }
                             triplets.push_back(Eigen::Triplet<double>(val(a, b, c), 3 * M + 8 * M * M + xi(c, alpha, beta), value));
                         }
@@ -333,7 +333,7 @@ private:
                     for (int alpha = 0; alpha < M; alpha++){
                         for (int beta = 0; beta < M; beta++){
                             for (int gamma = 0; gamma < M; gamma++){
-                                P[16 * a + 4 * b + c] += q_a(alpha) * q_b(beta) * q_c(gamma) * xi_a(a, beta, gamma) * xi_b(b, alpha, gamma) * xi_c(c, beta, gamma);
+                                P[16 * a + 4 * b + c] += q_a(alpha) * q_b(beta) * q_c(gamma) * xi_a(a, beta, gamma) * xi_b(b, alpha, gamma) * xi_c(c, alpha, beta);
                             }
                         }
                     }

@@ -118,9 +118,7 @@ int main(int argc, char* argv[]) {
 
     // just a random distribution
     Eigen::VectorXd random = Eigen::VectorXd::Random(64);
-    for (int i = 0; i < 64; i++){
-        random(i) = std::abs(random(i));
-    }
+    random = random.cwiseAbs();
     random /= random.sum();
 
     const Distribution something(2,
@@ -139,7 +137,7 @@ int main(int argc, char* argv[]) {
 
 
     if (iterative){
-        Eigen::VectorXd sol = Iterative::solve(generateRandom(M), elegantJointDistribution(), 3U);       
+        Eigen::VectorXd sol = Iterative::solve(uniform, random, 10U);       
     //    std::cout << "What we got as an approximation: " << std::endl;
     //    std::cout << sol << std::endl;
     }
